@@ -1,0 +1,25 @@
+{
+  "display": {
+    "hdmi_width": 800,
+    "hdmi_height": 600,
+    "fps": 60,
+    "fullscreen": false
+  },
+  "audio": {
+    "enable_buzzer": true,
+    "volume": 80,
+    "startup_sound": true
+  },
+  "hardware": {
+    "spi_screen_enabled": true,
+    "xbox_controller_enabled": true,
+    "matrix_keypad_enabled": true,
+    "traffic_light_enabled": true,
+    "power_button_enabled": true
+  },
+  "debug": {
+    "log_level": "INFO",
+    "show_fps": false,
+    "hardware_monitor": false
+  }
+}
