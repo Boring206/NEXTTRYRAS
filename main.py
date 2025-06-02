@@ -137,15 +137,15 @@ class EnhancedGameConsole:
         self.config = SystemConfig()
         logging.info(f"遊戲機系統啟動 v{VERSION}")
         self.games = [
-            {"id": 1, "name": "貪吃蛇 (Snake)", "description": "搖桿控制方向。按A鈕加速。避免撞牆和自己。", "game_class": SnakeGame, "difficulty": "Easy"},
-            {"id": 2, "name": "打磚塊 (Brick Breaker)", "description": "搖桿左右移動擋板。按A鈕發射球。清除所有磚塊。", "game_class": BrickBreakerGame, "difficulty": "Medium"},
-            {"id": 3, "name": "太空侵略者 (Space Invaders)", "description": "搖桿左右移動。按A鈕射擊。消滅所有外星人。", "game_class": SpaceInvadersGame, "difficulty": "Hard"},
-            {"id": 4, "name": "井字遊戲 (Tic-Tac-Toe)", "description": "搖桿選擇格子。按A鈕確認。連成一線獲勝。", "game_class": TicTacToeGame, "difficulty": "Easy"},
-            {"id": 5, "name": "記憶翻牌 (Memory Match)", "description": "搖桿選擇牌。按A鈕翻牌。記住位置配對。", "game_class": MemoryMatchGame, "difficulty": "Medium"},
-            {"id": 6, "name": "簡易迷宮 (Simple Maze)", "description": "搖桿控制方向。找到出口。時間越短越好。", "game_class": SimpleMazeGame, "difficulty": "Medium"},
-            {"id": 7, "name": "打地鼠 (Whac-A-Mole)", "description": "搖桿移動槌子。按A鈕敲擊。反應要快！", "game_class": WhacAMoleGame, "difficulty": "Hard"},
-            {"id": 8, "name": "俄羅斯方塊 (Tetris-like)", "description": "搖桿移動旋轉。消除滿行得分。速度會加快。", "game_class": TetrisLikeGame, "difficulty": "Hard"},
-            {"id": 9, "name": "反應力測試 (Reaction Test)", "description": "出現信號時按A鈕。測試反應速度極限。", "game_class": ReactionTestGame, "difficulty": "Medium"}
+            {"id": 1, "name": "貪吃蛇", "description": "搖桿控制方向。按A鈕加速。避免撞牆和自己。", "game_class": SnakeGame, "difficulty": "Easy"},
+            {"id": 2, "name": "打磚塊", "description": "搖桿左右移動擋板。按A鈕發射球。清除所有磚塊。", "game_class": BrickBreakerGame, "difficulty": "Medium"},
+            {"id": 3, "name": "太空侵略者", "description": "搖桿左右移動。按A鈕射擊。消滅所有外星人。", "game_class": SpaceInvadersGame, "difficulty": "Hard"},
+            {"id": 4, "name": "井字遊戲", "description": "搖桿選擇格子。按A鈕確認。連成一線獲勝。", "game_class": TicTacToeGame, "difficulty": "Easy"},
+            {"id": 5, "name": "記憶翻牌", "description": "搖桿選擇牌。按A鈕翻牌。記住位置配對。", "game_class": MemoryMatchGame, "difficulty": "Medium"},
+            {"id": 6, "name": "簡易迷宮", "description": "搖桿控制方向。找到出口。時間越短越好。", "game_class": SimpleMazeGame, "difficulty": "Medium"},
+            {"id": 7, "name": "打地鼠", "description": "搖桿移動槌子。按A鈕敲擊。反應要快！", "game_class": WhacAMoleGame, "difficulty": "Hard"},
+            {"id": 8, "name": "俄羅斯方塊", "description": "搖桿移動旋轉。消除滿行得分。速度會加快。", "game_class": TetrisLikeGame, "difficulty": "Hard"},
+            {"id": 9, "name": "反應力測試", "description": "出現信號時按A鈕。測試反應速度極限。", "game_class": ReactionTestGame, "difficulty": "Medium"}
         ]
         self.state = GameState.STARTUP; self.previous_state = None; self.current_selection = 0
         self.current_game = None; self.running = True # 主循環控制旗標
