@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# game8.py - 俄羅斯方塊遊戲實現
+# game8.py - Tetris-like Game Implementation
 
 import random
 import pygame
@@ -8,23 +8,23 @@ import time
 from pygame.locals import *
 
 class TetrisLikeGame:
-    """俄羅斯方塊遊戲類"""
+    """Tetris-like Game Class"""
     
     def __init__(self, width=800, height=600, buzzer=None):
-        self.width = width       # 遊戲區域寬度
-        self.height = height     # 遊戲區域高度
-        self.buzzer = buzzer     # 蜂鳴器實例，用於音效回饋
+        self.width = width       # Game area width
+        self.height = height     # Game area height
+        self.buzzer = buzzer     # Buzzer instance for audio feedback
         
-        # 遊戲參數
-        self.grid_width = 10     # 遊戲區域寬度 (方塊數)
-        self.grid_height = 20    # 遊戲區域高度 (方塊數)
+        # Game parameters
+        self.grid_width = 10     # Game area width (in blocks)
+        self.grid_height = 20    # Game area height (in blocks)
         self.block_size = min(width // 20, height // 22)
         
-        # 遊戲區域位置
+        # Game area position
         self.board_x = (width - self.grid_width * self.block_size) // 2
         self.board_y = height - self.grid_height * self.block_size - 20
         
-        # 顏色定義
+        # Color definitions
         self.BLACK = (0, 0, 0)
         self.WHITE = (255, 255, 255)
         self.GRAY = (128, 128, 128)
@@ -36,7 +36,7 @@ class TetrisLikeGame:
         self.MAGENTA = (255, 0, 255)
         self.ORANGE = (255, 165, 0)
         
-        # 方塊顏色
+        # Block colors
         self.BLOCK_COLORS = [
             self.RED,
             self.GREEN,
@@ -47,52 +47,52 @@ class TetrisLikeGame:
             self.ORANGE
         ]
         
-        # 方塊形狀 (各種排列方式)
-        # 每個形狀都是一個 4x4 的網格，其中 1 表示方塊存在，0 表示空白
+        # Block shapes (various arrangements)
+        # Each shape is a 4x4 grid, where 1 indicates block exists, 0 indicates empty
         self.SHAPES = [
-            # I 形
+            # I shape
             [
                 [0, 0, 0, 0],
                 [1, 1, 1, 1],
                 [0, 0, 0, 0],
                 [0, 0, 0, 0]
             ],
-            # J 形
+            # J shape
             [
                 [1, 0, 0, 0],
                 [1, 1, 1, 0],
                 [0, 0, 0, 0],
                 [0, 0, 0, 0]
             ],
-            # L 形
+            # L shape
             [
                 [0, 0, 1, 0],
                 [1, 1, 1, 0],
                 [0, 0, 0, 0],
                 [0, 0, 0, 0]
             ],
-            # O 形
+            # O shape
             [
                 [0, 1, 1, 0],
                 [0, 1, 1, 0],
                 [0, 0, 0, 0],
                 [0, 0, 0, 0]
             ],
-            # S 形
+            # S shape
             [
                 [0, 1, 1, 0],
                 [1, 1, 0, 0],
                 [0, 0, 0, 0],
                 [0, 0, 0, 0]
             ],
-            # T 形
+            # T shape
             [
                 [0, 1, 0, 0],
                 [1, 1, 1, 0],
                 [0, 0, 0, 0],
                 [0, 0, 0, 0]
             ],
-            # Z 形
+            # Z shape
             [
                 [1, 1, 0, 0],
                 [0, 1, 1, 0],
@@ -101,76 +101,76 @@ class TetrisLikeGame:
             ]
         ]
         
-        # 遊戲速度相關
+        # Game speed related
         self.clock = pygame.time.Clock()
         self.fps = 60
         
-        # 初始化遊戲狀態
+        # Initialize game state
         self.reset_game()
     
     def reset_game(self):
-        """重置遊戲狀態"""
-        # 遊戲狀態
+        """Reset game state"""
+        # Game state
         self.game_over = False
         self.paused = False
         self.score = 0
         self.level = 1
         self.lines_cleared = 0
         
-        # 遊戲區域 (0表示空白，大於0表示方塊的顏色索引)
+        # Game board (0 indicates empty, >0 indicates block color index)
         self.board = [[0 for _ in range(self.grid_width)] for _ in range(self.grid_height)]
         
-        # 當前下落的方塊
+        # Current falling block
         self.current_shape = None
         self.current_color = None
         self.current_x = 0
         self.current_y = 0
         self.current_rotation = 0
         
-        # 生成第一個方塊
+        # Generate first block
         self.generate_new_shape()
         
-        # 下落時間控制
+        # Drop time control
         self.last_drop_time = time.time()
-        self.drop_interval = 1.0  # 初始下落間隔 (秒)
+        self.drop_interval = 1.0  # Initial drop interval (seconds)
         
-        # 輸入控制
+        # Input control
         self.last_input_time = time.time()
-        self.input_delay = 0.1  # 秒
+        self.input_delay = 0.1  # seconds
         
-        # 快速下落標記
+        # Fast drop flag
         self.fast_drop = False
     
     def generate_new_shape(self):
-        """生成一個新的隨機方塊"""
-        # 選擇隨機形狀和顏色
+        """Generate a new random block"""
+        # Select random shape and color
         shape_idx = random.randint(0, len(self.SHAPES) - 1)
         self.current_shape = self.SHAPES[shape_idx]
-        self.current_color = shape_idx + 1  # 顏色索引從 1 開始，0 表示空白
+        self.current_color = shape_idx + 1  # Color index starts from 1, 0 indicates empty
         
-        # 設置初始位置 (居中)
+        # Set initial position (centered)
         self.current_x = self.grid_width // 2 - 2
         self.current_y = 0
         self.current_rotation = 0
         
-        # 檢查遊戲是否結束 (如果新方塊與已有方塊重疊)
+        # Check if game is over (if new block overlaps with existing blocks)
         if self.is_collision():
             self.game_over = True
             if self.buzzer:
                 self.buzzer.play_game_over_melody()
     
     def rotate_shape(self, shape):
-        """旋轉方塊 (順時針旋轉90度)"""
-        # 轉置矩陣
+        """Rotate block (clockwise 90 degrees)"""
+        # Transpose matrix
         transposed = [[shape[y][x] for y in range(4)] for x in range(4)]
         
-        # 反轉每行 (順時針旋轉)
+        # Reverse each row (clockwise rotation)
         rotated = [row[::-1] for row in transposed]
         
         return rotated
     
     def is_collision(self):
-        """檢查當前方塊是否與邊界或其他方塊碰撞"""
+        """Check if current block collides with boundaries or other blocks"""
         for y in range(4):
             for x in range(4):
                 if self.current_shape[y][x] == 0:
@@ -179,19 +179,19 @@ class TetrisLikeGame:
                 board_x = self.current_x + x
                 board_y = self.current_y + y
                 
-                # 檢查是否超出邊界
+                # Check if out of bounds
                 if (board_x < 0 or board_x >= self.grid_width or
                     board_y < 0 or board_y >= self.grid_height):
                     return True
                 
-                # 檢查是否與已有方塊重疊
+                # Check if overlaps with existing blocks
                 if board_y >= 0 and self.board[board_y][board_x] > 0:
                     return True
                     
         return False
     
     def move_left(self):
-        """嘗試將當前方塊向左移動"""
+        """Try to move current block left"""
         self.current_x -= 1
         if self.is_collision():
             self.current_x += 1
@@ -202,7 +202,7 @@ class TetrisLikeGame:
         return True
     
     def move_right(self):
-        """嘗試將當前方塊向右移動"""
+        """Try to move current block right"""
         self.current_x += 1
         if self.is_collision():
             self.current_x -= 1
@@ -213,7 +213,7 @@ class TetrisLikeGame:
         return True
     
     def move_down(self):
-        """嘗試將當前方塊向下移動"""
+        """Try to move current block down"""
         self.current_y += 1
         if self.is_collision():
             self.current_y -= 1
@@ -222,19 +222,19 @@ class TetrisLikeGame:
         return True
     
     def rotate(self):
-        """嘗試旋轉當前方塊"""
+        """Try to rotate current block"""
         original_shape = self.current_shape
         self.current_shape = self.rotate_shape(self.current_shape)
         
-        # 如果旋轉後碰撞，嘗試左右移動調整位置
+        # If collision after rotation, try left/right adjustment
         if self.is_collision():
-            # 嘗試向左移動
+            # Try moving left
             self.current_x -= 1
             if self.is_collision():
-                # 嘗試向右移動
+                # Try moving right
                 self.current_x += 2
                 if self.is_collision():
-                    # 如果仍然無法旋轉，恢復原始形狀和位置
+                    # If still can't rotate, restore original shape and position
                     self.current_x -= 1
                     self.current_shape = original_shape
                     return False
@@ -244,7 +244,7 @@ class TetrisLikeGame:
         return True
     
     def hard_drop(self):
-        """快速下落方塊到底部"""
+        """Quick drop block to bottom"""
         while self.move_down():
             pass
         
@@ -252,7 +252,7 @@ class TetrisLikeGame:
             self.buzzer.play_tone("score")
     
     def lock_shape(self):
-        """將當前方塊鎖定到遊戲區域"""
+        """Lock current block to game board"""
         for y in range(4):
             for x in range(4):
                 if self.current_shape[y][x] == 0:
@@ -261,77 +261,77 @@ class TetrisLikeGame:
                 board_y = self.current_y + y
                 board_x = self.current_x + x
                 
-                # 確保在遊戲區域內
+                # Ensure within game area
                 if 0 <= board_y < self.grid_height and 0 <= board_x < self.grid_width:
                     self.board[board_y][board_x] = self.current_color
         
-        # 檢查並清除滿行
+        # Check and clear full lines
         self.check_lines()
         
-        # 生成新方塊
+        # Generate new block
         self.generate_new_shape()
     
     def check_lines(self):
-        """檢查並清除滿行"""
+        """Check and clear full lines"""
         lines_to_clear = []
         
-        # 檢查哪些行已滿
+        # Check which lines are full
         for y in range(self.grid_height):
             if all(self.board[y][x] > 0 for x in range(self.grid_width)):
                 lines_to_clear.append(y)
         
-        # 清除行
+        # Clear lines
         for line in lines_to_clear:
-            # 將上方行向下移動
+            # Move upper lines down
             for y in range(line, 0, -1):
                 self.board[y] = self.board[y - 1][:]
             
-            # 頂部行設為空
+            # Set top line to empty
             self.board[0] = [0] * self.grid_width
         
-        # 計算得分
+        # Calculate score
         if lines_to_clear:
-            # 基本分數: 行數 * 100 * 等級
+            # Base score: lines * 100 * level
             points = len(lines_to_clear) * 100 * self.level
             self.score += points
             
-            # 增加已清除行數
+            # Increase cleared lines count
             self.lines_cleared += len(lines_to_clear)
             
-            # 每清除 10 行，等級提升
+            # Level up every 10 lines cleared
             if self.lines_cleared // 10 > (self.lines_cleared - len(lines_to_clear)) // 10:
                 self.level_up()
             
-            # 播放清除行音效
+            # Play line clear sound effect
             if self.buzzer:
                 if len(lines_to_clear) >= 4:
-                    self.buzzer.play_win_melody()  # 一次清除 4 行（Tetris）
+                    self.buzzer.play_win_melody()  # Clear 4 lines at once (Tetris)
                 else:
                     self.buzzer.play_tone("level_up")
     
     def level_up(self):
-        """提升等級，增加速度"""
+        """Level up, increase speed"""
         self.level += 1
         self.drop_interval = max(0.1, 1.0 - 0.05 * (self.level - 1))
         
-        # 增強音效系統
+        # Enhanced audio system
         if self.buzzer:
-            # 播放等級提升音效序列
+            # Play level up sound effect sequence
             frequencies = [523, 659, 784, 1047]  # C5, E5, G5, C6
             for freq in frequencies:
                 self.buzzer.play_tone(frequency=freq, duration=0.15)
                 time.sleep(0.05)
     
     def clear_lines(self, lines_to_clear):
-        """清除滿行，增強視覺和音效效果"""
+        """Clear full lines with enhanced visual and audio effects"""
         if not lines_to_clear:
             return
         
-        # 閃爍效果
+        # Flash effect
         for flash in range(3):
             for row in lines_to_clear:
                 for col in range(self.grid_width):
-                    self.grid[row][col] = 9  # 特殊標記
+                    self.grid[row][col] = 9  # Special marker
             time.sleep(0.1)
             
             for row in lines_to_clear:
@@ -339,18 +339,18 @@ class TetrisLikeGame:
                     self.grid[row][col] = 0
             time.sleep(0.1)
         
-        # 移除行並添加新行
+        # Remove lines and add new lines
         for row in sorted(lines_to_clear, reverse=True):
             del self.grid[row]
             self.grid.insert(0, [0] * self.grid_width)
         
-        # 更新分數和音效
+        # Update score and sound effects
         lines_count = len(lines_to_clear)
         base_score = [0, 100, 300, 500, 800][min(lines_count, 4)]
         self.score += base_score * self.level
         self.lines_cleared += lines_count
         
-        # 音效回饋
+        # Audio feedback
         if self.buzzer:
             if lines_count == 4:  # Tetris
                 self.buzzer.play_tetris_fanfare()
@@ -359,12 +359,12 @@ class TetrisLikeGame:
             else:
                 self.buzzer.play_single_line_clear()
         
-        # 等級檢查
+        # Level check
         if self.lines_cleared >= self.level * 10:
             self.level_up()
 
     def update(self, controller_input=None):
-        """更新遊戲狀態，增強輸入處理"""
+        """Update game state with enhanced input handling"""
         if self.game_over or self.paused:
             if controller_input and controller_input.get("start_pressed"):
                 if self.game_over:
@@ -375,63 +375,49 @@ class TetrisLikeGame:
         
         current_time = time.time()
         
-        # 處理輸入
+        # Handle input
         if controller_input:
-            # 移動控制（防止過快輸入）
+            # Movement control (prevent too fast input)
             if current_time - self.last_input_time > 0.1:
                 moved = False
                 
                 if controller_input.get("left_pressed"):
-                    if self.move_piece(-1, 0):
+                    if self.move_left():
                         moved = True
                 elif controller_input.get("right_pressed"):
-                    if self.move_piece(1, 0):
+                    if self.move_right():
                         moved = True
                 elif controller_input.get("down_pressed"):
-                    if self.move_piece(0, 1):
+                    if self.move_down():
                         moved = True
-                        self.score += 1  # 軟降分數
+                        self.score += 1  # Soft drop score
                 
                 if moved:
                     self.last_input_time = current_time
                     if self.buzzer:
                         self.buzzer.play_tone(frequency=400, duration=0.05)
             
-            # 旋轉控制
-            if controller_input.get("up_pressed") and current_time - self.last_rotate_time > 0.2:
-                if self.rotate_piece():
+            # Rotation control
+            if controller_input.get("up_pressed") and current_time - getattr(self, 'last_rotate_time', 0) > 0.2:
+                if self.rotate():
                     self.last_rotate_time = current_time
                     if self.buzzer:
                         self.buzzer.play_tone(frequency=600, duration=0.1)
             
-            # 硬降控制
-            if controller_input.get("a_pressed") and current_time - self.last_hard_drop_time > 0.3:
-                drop_distance = self.hard_drop_piece()
-                if drop_distance > 0:
-                    self.score += drop_distance * 2
-                    self.last_hard_drop_time = current_time
-                    if self.buzzer:
-                        self.buzzer.play_hard_drop()
+            # Hard drop control
+            if controller_input.get("a_pressed") and current_time - getattr(self, 'last_hard_drop_time', 0) > 0.3:
+                self.hard_drop()
+                self.last_hard_drop_time = current_time
             
-            # 暫停控制
+            # Pause control
             if controller_input.get("start_pressed"):
                 self.paused = not self.paused
                 return {"game_over": self.game_over, "level": self.level, "paused": self.paused}
         
-        # 自動下降邏輯
+        # Auto drop logic
         if current_time - self.last_drop_time >= self.drop_interval:
-            if not self.move_piece(0, 1):
-                self.lock_piece()
-                lines_to_clear = self.check_for_lines()
-                if lines_to_clear:
-                    self.clear_lines(lines_to_clear)
-                
-                self.spawn_new_piece()
-                
-                if self.check_collision():
-                    self.game_over = True
-                    if self.buzzer:
-                        self.buzzer.play_game_over_melody()
+            if not self.move_down():
+                self.check_lines()
             
             self.last_drop_time = current_time
         
@@ -439,15 +425,15 @@ class TetrisLikeGame:
     
     def render(self, screen):
         """
-        渲染遊戲畫面
+        Render game screen
         
-        參數:
-            screen: pygame 螢幕物件
+        Parameters:
+            screen: pygame screen object
         """
-        # 清除螢幕
+        # Clear screen
         screen.fill(self.BLACK)
         
-        # 繪製遊戲區域邊框
+        # Draw game area border
         board_rect = pygame.Rect(
             self.board_x - 1,
             self.board_y - 1,
@@ -456,7 +442,7 @@ class TetrisLikeGame:
         )
         pygame.draw.rect(screen, self.WHITE, board_rect, 2)
         
-        # 繪製已鎖定的方塊
+        # Draw locked blocks
         for y in range(self.grid_height):
             for x in range(self.grid_width):
                 if self.board[y][x] > 0:
@@ -472,7 +458,7 @@ class TetrisLikeGame:
                     pygame.draw.rect(screen, color, block_rect)
                     pygame.draw.rect(screen, self.WHITE, block_rect, 1)
         
-        # 繪製當前下落的方塊
+        # Draw current falling block
         if self.current_shape:
             for y in range(4):
                 for x in range(4):
@@ -488,84 +474,84 @@ class TetrisLikeGame:
                         pygame.draw.rect(screen, color, block_rect)
                         pygame.draw.rect(screen, self.WHITE, block_rect, 1)
         
-        # 繪製遊戲資訊
+        # Draw game info
         font = pygame.font.Font(None, 36)
         
-        # 分數
-        score_text = font.render(f"分數: {self.score}", True, self.WHITE)
+        # Score
+        score_text = font.render(f"Score: {self.score}", True, self.WHITE)
         screen.blit(score_text, (20, 20))
         
-        # 等級
-        level_text = font.render(f"等級: {self.level}", True, self.WHITE)
+        # Level
+        level_text = font.render(f"Level: {self.level}", True, self.WHITE)
         screen.blit(level_text, (20, 60))
         
-        # 已清除行數
-        lines_text = font.render(f"行數: {self.lines_cleared}", True, self.WHITE)
+        # Lines cleared
+        lines_text = font.render(f"Lines: {self.lines_cleared}", True, self.WHITE)
         screen.blit(lines_text, (20, 100))
         
-        # 遊戲結束畫面
+        # Game over screen
         if self.game_over:
             self.draw_game_over(screen)
         
-        # 暫停畫面
+        # Pause screen
         elif self.paused:
             self.draw_pause(screen)
     
     def draw_game_over(self, screen):
-        """繪製遊戲結束畫面"""
+        """Draw game over screen"""
         overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 128))
         screen.blit(overlay, (0, 0))
         
         font = pygame.font.Font(None, 72)
-        text = font.render("遊戲結束", True, self.RED)
+        text = font.render("Game Over", True, self.RED)
         screen.blit(text, (self.width // 2 - text.get_width() // 2, self.height // 2 - 50))
         
         font = pygame.font.Font(None, 36)
-        score_text = font.render(f"最終分數: {self.score}", True, self.WHITE)
+        score_text = font.render(f"Final Score: {self.score}", True, self.WHITE)
         screen.blit(score_text, (self.width // 2 - score_text.get_width() // 2, self.height // 2 + 10))
         
-        level_text = font.render(f"達成等級: {self.level}", True, self.WHITE)
+        level_text = font.render(f"Level Reached: {self.level}", True, self.WHITE)
         screen.blit(level_text, (self.width // 2 - level_text.get_width() // 2, self.height // 2 + 50))
         
-        restart_text = font.render("按 Start 重新開始", True, self.WHITE)
+        restart_text = font.render("Press Start to Restart", True, self.WHITE)
         screen.blit(restart_text, (self.width // 2 - restart_text.get_width() // 2, self.height // 2 + 90))
     
     def draw_pause(self, screen):
-        """繪製暫停畫面"""
+        """Draw pause screen"""
         overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 128))
         screen.blit(overlay, (0, 0))
         
         font = pygame.font.Font(None, 72)
-        text = font.render("暫停", True, self.YELLOW)
+        text = font.render("Paused", True, self.YELLOW)
         screen.blit(text, (self.width // 2 - text.get_width() // 2, self.height // 2 - 50))
         
         font = pygame.font.Font(None, 36)
-        continue_text = font.render("按 Start 繼續", True, self.WHITE)
+        continue_text = font.render("Press Start to Continue", True, self.WHITE)
         screen.blit(continue_text, (self.width // 2 - continue_text.get_width() // 2, self.height // 2 + 10))
     
     def cleanup(self):
-        """清理遊戲資源"""
-        # 目前無需特殊清理，但保留此方法以便未來擴充
+        """Clean up game resources"""
+        # Currently no special cleanup needed, but keeping this method for future expansion
         pass
 
-# 若獨立執行此腳本，用於測試
+# If running this script independently, used for testing
 if __name__ == "__main__":
     try:
-        # 初始化 pygame
+        # Initialize pygame
         pygame.init()
         
-        # 設置視窗
+        # Setup window
         screen_width = 800
         screen_height = 600
         screen = pygame.display.set_mode((screen_width, screen_height))
-        pygame.display.set_caption("俄羅斯方塊遊戲測試")
+        pygame.display.set_caption("Tetris-like Game Test")
         
-        # 建立遊戲實例
+        # Create game instance
         game = TetrisLikeGame(screen_width, screen_height)
         
-        # 模擬控制器輸入的鍵盤映射
+        # Simulate controller input keyboard mapping
         key_mapping = {
             pygame.K_UP: "up_pressed",
             pygame.K_DOWN: "down_pressed",
@@ -575,35 +561,35 @@ if __name__ == "__main__":
             pygame.K_RETURN: "start_pressed"
         }
         
-        # 遊戲主迴圈
+        # Game main loop
         running = True
         while running:
-            # 處理事件
+            # Handle events
             controller_input = {key: False for key in key_mapping.values()}
             
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
             
-            # 獲取當前按下的按鍵狀態
+            # Get current pressed key states
             keys = pygame.key.get_pressed()
             for key, input_name in key_mapping.items():
                 if keys[key]:
                     controller_input[input_name] = True
             
-            # 更新遊戲
+            # Update game
             game.update(controller_input)
             
-            # 渲染
+            # Render
             game.render(screen)
             pygame.display.flip()
             
-            # 控制幀率
+            # Control frame rate
             pygame.time.Clock().tick(60)
         
-        # 退出 pygame
+        # Exit pygame
         pygame.quit()
     
     except Exception as e:
-        print(f"遊戲執行錯誤: {e}")
+        print(f"Game execution error: {e}")
         pygame.quit()

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# game7.py - 打地鼠遊戲實現
+# game7.py - Whac-A-Mole Game Implementation
 
 import random
 import pygame
@@ -8,14 +8,14 @@ import time
 from pygame.locals import *
 
 class WhacAMoleGame:
-    """打地鼠遊戲類"""
+    """Whac-A-Mole Game Class"""
     
     def __init__(self, width=800, height=600, buzzer=None):
-        self.width = width       # 遊戲區域寬度
-        self.height = height     # 遊戲區域高度
-        self.buzzer = buzzer     # 蜂鳴器實例，用於音效回饋
+        self.width = width       # Game area width
+        self.height = height     # Game area height
+        self.buzzer = buzzer     # Buzzer instance for audio feedback
         
-        # 顏色定義
+        # Color definitions
         self.BLACK = (0, 0, 0)
         self.WHITE = (255, 255, 255)
         self.GREEN = (0, 255, 0)
@@ -25,44 +25,44 @@ class WhacAMoleGame:
         self.BROWN = (165, 42, 42)
         self.LIGHT_BROWN = (222, 184, 135)
         
-        # 遊戲參數
-        self.grid_size = 3       # 3x3 網格
-        self.hole_radius = 50    # 洞的半徑
-        self.mole_radius = 40    # 地鼠的半徑
-        self.hammer_size = 70    # 錘子的大小
+        # Game parameters
+        self.grid_size = 3       # 3x3 grid
+        self.hole_radius = 50    # Hole radius
+        self.mole_radius = 40    # Mole radius
+        self.hammer_size = 70    # Hammer size
         
-        # 計算網格位置
+        # Calculate grid positions
         self.calculate_grid()
         
-        # 遊戲速度相關
+        # Game speed related
         self.clock = pygame.time.Clock()
         self.fps = 60
         
-        # 初始化遊戲狀態
+        # Initialize game state
         self.reset_game()
         
-        # 載入資源
+        # Load resources
         self.load_resources()
     
     def load_resources(self):
-        """載入遊戲資源，如圖片、聲音等"""
-        # 這裡可以載入地鼠、錘子等圖片
-        # 但在此版本中，我們使用簡單的幾何圖形繪製
+        """Load game resources, such as images, sounds, etc."""
+        # Here you can load images for moles, hammers, etc.
+        # But in this version, we use simple geometric shapes for drawing
         pass
     
     def calculate_grid(self):
-        """計算網格位置"""
+        """Calculate grid positions"""
         self.grid_positions = []
         
-        # 計算間距
+        # Calculate margins
         margin_x = self.width // 6
         margin_y = self.height // 6
         
-        # 計算間隔
+        # Calculate spacing
         spacing_x = (self.width - 2 * margin_x) // (self.grid_size - 1)
         spacing_y = (self.height - 2 * margin_y) // (self.grid_size - 1)
         
-        # 生成網格座標
+        # Generate grid coordinates
         for y in range(self.grid_size):
             for x in range(self.grid_size):
                 pos_x = margin_x + x * spacing_x
@@ -70,83 +70,83 @@ class WhacAMoleGame:
                 self.grid_positions.append((pos_x, pos_y))
     
     def reset_game(self):
-        """重置遊戲狀態"""
-        # 遊戲狀態
+        """Reset game state"""
+        # Game state
         self.game_over = False
         self.paused = False
         self.score = 0
         self.misses = 0
-        self.time_left = 60  # 60 秒遊戲時間
+        self.time_left = 60  # 60 seconds game time
         self.start_time = time.time()
         
-        # 地鼠狀態
-        self.moles = [False] * (self.grid_size * self.grid_size)  # 是否出現地鼠
-        self.mole_timers = [0] * (self.grid_size * self.grid_size)  # 地鼠顯示時間
+        # Mole state
+        self.moles = [False] * (self.grid_size * self.grid_size)  # Whether the mole appears
+        self.mole_timers = [0] * (self.grid_size * self.grid_size)  # Mole display time
         
-        # 錘子位置 (初始在中央)
+        # Hammer position (initially in the center)
         self.hammer_pos = (self.width // 2, self.height // 2)
-        self.hammer_idx = (self.grid_size * self.grid_size) // 2  # 中央位置索引
-        self.hammer_active = False  # 錘子是否正在敲打
-        self.hammer_angle = 0  # 錘子旋轉角度
+        self.hammer_idx = (self.grid_size * self.grid_size) // 2  # Center position index
+        self.hammer_active = False  # Is the hammer currently hitting?
+        self.hammer_angle = 0  # Hammer rotation angle
         
-        # 難度參數
-        self.mole_show_time_min = 1.0  # 最短顯示時間
-        self.mole_show_time_max = 2.5  # 最長顯示時間
-        self.mole_spawn_interval = 1.0  # 生成間隔
+        # Difficulty parameters
+        self.mole_show_time_min = 1.0  # Minimum display time
+        self.mole_show_time_max = 2.5  # Maximum display time
+        self.mole_spawn_interval = 1.0  # Spawn interval
         self.last_spawn_time = time.time()
         
-        # 用於控制輸入頻率
+        # For controlling input frequency
         self.last_input_time = time.time()
-        self.input_delay = 0.2  # 秒
+        self.input_delay = 0.2  # seconds
         
-        # 連擊系統
+        # Combo system
         self.combo = 0
         self.last_hit_time = 0
         self.hits = 0
     
     def spawn_mole(self):
-        """隨機生成一個地鼠"""
-        # 尋找所有沒有地鼠的洞
+        """Randomly spawn a mole"""
+        # Find all holes without moles
         empty_holes = [i for i, mole in enumerate(self.moles) if not mole]
         
         if empty_holes:
-            # 隨機選擇一個洞
+            # Randomly select a hole
             hole_idx = random.choice(empty_holes)
             
-            # 出現地鼠
+            # Mole appears
             self.moles[hole_idx] = True
             
-            # 設置顯示時間
+            # Set display time
             show_time = random.uniform(self.mole_show_time_min, self.mole_show_time_max)
             self.mole_timers[hole_idx] = show_time
     
     def update_moles(self, delta_time):
-        """更新地鼠狀態"""
+        """Update mole states"""
         for i in range(len(self.moles)):
             if self.moles[i]:
-                # 減少顯示時間
+                # Decrease display time
                 self.mole_timers[i] -= delta_time
                 
-                # 如果時間到，地鼠消失
+                # If time's up, mole disappears
                 if self.mole_timers[i] <= 0:
                     self.moles[i] = False
-                    self.misses += 1  # 未打中算一次失誤
+                    self.misses += 1  # Not hitting counts as a miss
                     
-                    # 增強音效回饋
+                    # Enhanced audio feedback
                     if self.buzzer:
-                        # 地鼠逃跑音效
+                        # Mole escape sound
                         self.buzzer.play_tone(frequency=200, duration=0.3)
     
     def hit_mole(self, position_idx):
-        """擊中地鼠，增強反饋效果"""
+        """Hit the mole, enhance feedback effect"""
         if 0 <= position_idx < len(self.moles) and self.moles[position_idx]:
             self.moles[position_idx] = False
             self.score += 10
             self.hits += 1
             
-            # 連擊系統
+            # Combo system
             current_time = time.time()
-            if current_time - self.last_hit_time < 1.0:  # 1秒內連擊
+            if current_time - self.last_hit_time < 1.0:  # Combo within 1 second
                 self.combo += 1
                 combo_bonus = self.combo * 5
                 self.score += combo_bonus
@@ -155,16 +155,16 @@ class WhacAMoleGame:
             
             self.last_hit_time = current_time
             
-            # 增強音效反饋
+            # Enhanced audio feedback
             if self.buzzer:
                 if self.combo > 5:
-                    # 高連擊音效
+                    # High combo sound
                     self.buzzer.play_tone(frequency=1200, duration=0.2)
                 elif self.combo > 3:
-                    # 中連擊音效
+                    # Medium combo sound
                     self.buzzer.play_tone(frequency=1000, duration=0.2)
                 else:
-                    # 普通擊中音效
+                    # Normal hit sound
                     base_freq = 800 + (self.combo * 50)
                     self.buzzer.play_tone(frequency=base_freq, duration=0.15)
             
@@ -173,16 +173,16 @@ class WhacAMoleGame:
     
     def update(self, controller_input=None):
         """
-        更新遊戲狀態
+        Update game state
         
-        參數:
-            controller_input: 來自控制器的輸入字典
+        Parameters:
+            controller_input: Input dictionary from controller
         
-        返回:
-            包含遊戲狀態的字典
+        Returns:
+            Dictionary containing game state
         """
         if self.game_over or self.paused:
-            # 處理遊戲結束或暫停狀態下的輸入
+            # Handle input in game over or paused state
             if controller_input and controller_input.get("start_pressed"):
                 if self.game_over:
                     self.reset_game()
@@ -191,42 +191,42 @@ class WhacAMoleGame:
             
             return {"game_over": self.game_over, "score": self.score, "paused": self.paused}
         
-        # 更新遊戲時間
+        # Update game time
         current_time = time.time()
         delta_time = current_time - self.start_time
         self.time_left = max(0, 60 - int(delta_time))
         
-        # 時間到，遊戲結束
+        # Time's up, game over
         if self.time_left <= 0:
             self.game_over = True
             
-            # 播放遊戲結束音效
+            # Play game over sound
             if self.buzzer:
                 self.buzzer.play_game_over_melody()
             
             return {"game_over": True, "score": self.score}
         
-        # 生成新地鼠
+        # Spawn new mole
         if current_time - self.last_spawn_time >= self.mole_spawn_interval:
             self.spawn_mole()
             self.last_spawn_time = current_time
         
-        # 更新地鼠狀態
+        # Update mole states
         self.update_moles(current_time - self.last_input_time)
         self.last_input_time = current_time
         
-        # 處理錘子動畫
+        # Hammer animation
         if self.hammer_active:
             self.hammer_angle += 15
             if self.hammer_angle >= 60:
                 self.hammer_active = False
                 self.hammer_angle = 0
         
-        # 處理玩家輸入
+        # Handle player input
         if controller_input:
             input_detected = False
             
-            # 移動錘子
+            # Move hammer
             if controller_input.get("up_pressed"):
                 self.hammer_idx = max(0, self.hammer_idx - self.grid_size)
                 input_detected = True
@@ -243,24 +243,24 @@ class WhacAMoleGame:
                     self.hammer_idx += 1
                 input_detected = True
             
-            # 更新錘子位置
+            # Update hammer position
             if 0 <= self.hammer_idx < len(self.grid_positions):
                 self.hammer_pos = self.grid_positions[self.hammer_idx]
             
-            # 敲打控制
+            # Hit control
             if controller_input.get("a_pressed") and not self.hammer_active:
                 self.hammer_active = True
                 self.hammer_angle = 0
                 self.hit_mole(self.hammer_idx)
                 input_detected = True
             
-            # 暫停控制
+            # Pause control
             if controller_input.get("start_pressed"):
                 self.paused = not self.paused
                 input_detected = True
                 return {"game_over": self.game_over, "score": self.score, "paused": self.paused}
             
-            # 如果檢測到輸入，播放音效
+            # If input is detected, play sound
             if input_detected and self.buzzer and not controller_input.get("a_pressed"):
                 self.buzzer.play_tone("navigate")
         
@@ -268,38 +268,38 @@ class WhacAMoleGame:
     
     def render(self, screen):
         """
-        渲染遊戲畫面
+        Render game screen
         
-        參數:
-            screen: pygame 螢幕物件
+        Parameters:
+            screen: pygame screen object
         """
-        # 清除螢幕
+        # Clear screen
         screen.fill(self.BLACK)
         
-        # 繪製背景 (草地)
+        # Draw background (grass)
         pygame.draw.rect(screen, (34, 139, 34), (0, 0, self.width, self.height))
         
-        # 繪製洞和地鼠
+        # Draw holes and moles
         for i, (x, y) in enumerate(self.grid_positions):
-            # 繪製洞
+            # Draw hole
             pygame.draw.circle(screen, self.BROWN, (x, y), self.hole_radius)
             pygame.draw.circle(screen, self.BLACK, (x, y), self.hole_radius - 5)
             
-            # 如果有地鼠，繪製地鼠
+            # If there is a mole, draw the mole
             if self.moles[i]:
                 pygame.draw.circle(screen, self.LIGHT_BROWN, (x, y - 15), self.mole_radius)
                 
-                # 繪製地鼠眼睛
+                # Draw mole's eyes
                 pygame.draw.circle(screen, self.BLACK, (x - 15, y - 25), 5)
                 pygame.draw.circle(screen, self.BLACK, (x + 15, y - 25), 5)
                 
-                # 繪製地鼠鼻子和嘴巴
+                # Draw mole's nose and mouth
                 pygame.draw.circle(screen, self.BLACK, (x, y - 15), 5)
                 pygame.draw.arc(screen, self.BLACK, (x - 20, y - 15, 40, 20), 0, 3.14, 2)
         
-        # 繪製錘子
+        # Draw hammer
         hammer_center = self.hammer_pos
-        # 繪製錘子頭
+        # Draw hammer head
         hammer_head_points = [
             (hammer_center[0] - 20, hammer_center[1] - 60 + self.hammer_angle),
             (hammer_center[0] + 20, hammer_center[1] - 60 + self.hammer_angle),
@@ -307,90 +307,90 @@ class WhacAMoleGame:
             (hammer_center[0] - 20, hammer_center[1] - 30 + self.hammer_angle)
         ]
         pygame.draw.polygon(screen, (150, 75, 0), hammer_head_points)
-        # 繪製錘子柄
+        # Draw hammer handle
         pygame.draw.line(screen, (101, 67, 33), 
                          (hammer_center[0], hammer_center[1] - 30 + self.hammer_angle),
                          (hammer_center[0], hammer_center[1] + 30),
                          5)
         
-        # 繪製遊戲資訊
+        # Draw game info
         font = pygame.font.Font(None, 36)
         
-        # 分數
-        score_text = font.render(f"分數: {self.score}", True, self.WHITE)
+        # Score
+        score_text = font.render(f"Score: {self.score}", True, self.WHITE)
         screen.blit(score_text, (10, 10))
         
-        # 失誤次數
-        misses_text = font.render(f"失誤: {self.misses}", True, self.WHITE)
+        # Misses
+        misses_text = font.render(f"Misses: {self.misses}", True, self.WHITE)
         screen.blit(misses_text, (10, 50))
         
-        # 剩餘時間
-        time_text = font.render(f"時間: {self.time_left}", True, self.WHITE)
+        # Time left
+        time_text = font.render(f"Time: {self.time_left}", True, self.WHITE)
         screen.blit(time_text, (self.width - 150, 10))
         
-        # 遊戲結束畫面
+        # Game over screen
         if self.game_over:
             self.draw_game_over(screen)
         
-        # 暫停畫面
+        # Pause screen
         elif self.paused:
             self.draw_pause(screen)
     
     def draw_game_over(self, screen):
-        """繪製遊戲結束畫面"""
+        """Draw game over screen"""
         overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 128))
         screen.blit(overlay, (0, 0))
         
         font = pygame.font.Font(None, 72)
-        text = font.render("遊戲結束", True, self.RED)
+        text = font.render("Game Over", True, self.RED)
         screen.blit(text, (self.width // 2 - text.get_width() // 2, self.height // 2 - 50))
         
         font = pygame.font.Font(None, 36)
-        score_text = font.render(f"最終分數: {self.score}", True, self.WHITE)
+        score_text = font.render(f"Final Score: {self.score}", True, self.WHITE)
         screen.blit(score_text, (self.width // 2 - score_text.get_width() // 2, self.height // 2 + 10))
         
-        miss_text = font.render(f"總失誤: {self.misses}", True, self.WHITE)
+        miss_text = font.render(f"Total Misses: {self.misses}", True, self.WHITE)
         screen.blit(miss_text, (self.width // 2 - miss_text.get_width() // 2, self.height // 2 + 50))
         
-        restart_text = font.render("按 Start 重新開始", True, self.WHITE)
+        restart_text = font.render("Press Start to Restart", True, self.WHITE)
         screen.blit(restart_text, (self.width // 2 - restart_text.get_width() // 2, self.height // 2 + 90))
     
     def draw_pause(self, screen):
-        """繪製暫停畫面"""
+        """Draw pause screen"""
         overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 128))
         screen.blit(overlay, (0, 0))
         
         font = pygame.font.Font(None, 72)
-        text = font.render("暫停", True, self.YELLOW)
+        text = font.render("Paused", True, self.YELLOW)
         screen.blit(text, (self.width // 2 - text.get_width() // 2, self.height // 2 - 50))
         
         font = pygame.font.Font(None, 36)
-        continue_text = font.render("按 Start 繼續", True, self.WHITE)
+        continue_text = font.render("Press Start to Continue", True, self.WHITE)
         screen.blit(continue_text, (self.width // 2 - continue_text.get_width() // 2, self.height // 2 + 10))
     
     def cleanup(self):
-        """清理遊戲資源"""
-        # 目前無需特殊清理，但保留此方法以便未來擴充
+        """Clean up game resources"""
+        # Currently no special cleanup is required, but this method is kept for future expansion
         pass
 
-# 若獨立執行此腳本，用於測試
+# If this script is run independently, for testing
 if __name__ == "__main__":
     try:
-        # 初始化 pygame
+        # Initialize pygame
         pygame.init()
         
-        # 設置視窗
+        # Set up window
         screen_width = 800
         screen_height = 600
         screen = pygame.display.set_mode((screen_width, screen_height))
-        pygame.display.set_caption("打地鼠遊戲測試")
+        pygame.display.set_caption("Whac-A-Mole Game Test")
         
-        # 建立遊戲實例
+        # Create game instance
         game = WhacAMoleGame(screen_width, screen_height)
         
-        # 模擬控制器輸入的鍵盤映射
+        # Simulate controller input key mapping
         key_mapping = {
             pygame.K_UP: "up_pressed",
             pygame.K_DOWN: "down_pressed",
@@ -400,7 +400,7 @@ if __name__ == "__main__":
             pygame.K_RETURN: "start_pressed"
         }
         
-        # 遊戲主迴圈
+        # Game main loop
         running = True
         last_time = time.time()
         
@@ -409,32 +409,32 @@ if __name__ == "__main__":
             delta_time = current_time - last_time
             last_time = current_time
             
-            # 處理事件
+            # Handle events
             controller_input = {key: False for key in key_mapping.values()}
             
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
             
-            # 獲取當前按下的按鍵狀態
+            # Get current key states
             keys = pygame.key.get_pressed()
             for key, input_name in key_mapping.items():
                 if keys[key]:
                     controller_input[input_name] = True
             
-            # 更新遊戲
+            # Update game
             game.update(controller_input)
             
-            # 渲染
+            # Render
             game.render(screen)
             pygame.display.flip()
             
-            # 控制幀率
+            # Control frame rate
             pygame.time.Clock().tick(60)
         
-        # 退出 pygame
+        # Quit pygame
         pygame.quit()
     
     except Exception as e:
-        print(f"遊戲執行錯誤: {e}")
+        print(f"Game execution error: {e}")
         pygame.quit()

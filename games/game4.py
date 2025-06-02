@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# game4.py - 井字遊戲實現
+# game4.py - Tic Tac Toe Game Implementation
 
 import random
 import pygame
@@ -8,14 +8,14 @@ import time
 from pygame.locals import *
 
 class TicTacToeGame:
-    """井字遊戲類"""
+    """Tic Tac Toe Game Class"""
     
     def __init__(self, width=800, height=600, buzzer=None):
-        self.width = width       # 遊戲區域寬度
-        self.height = height     # 遊戲區域高度
-        self.buzzer = buzzer     # 蜂鳴器實例，用於音效回饋
+        self.width = width       # Game area width
+        self.height = height     # Game area height
+        self.buzzer = buzzer     # Buzzer instance for audio feedback
         
-        # 顏色定義
+        # Color definitions
         self.BLACK = (0, 0, 0)
         self.WHITE = (255, 255, 255)
         self.RED = (255, 0, 0)
@@ -24,60 +24,60 @@ class TicTacToeGame:
         self.YELLOW = (255, 255, 0)
         self.GRAY = (128, 128, 128)
         
-        # 遊戲元素大小
+        # Game element sizes
         self.board_size = min(width, height) - 100
         self.grid_size = self.board_size // 3
         self.board_x = (width - self.board_size) // 2
         self.board_y = (height - self.board_size) // 2
         self.line_width = 5
         
-        # 遊戲速度相關
+        # Game speed settings
         self.clock = pygame.time.Clock()
         self.fps = 30
         
-        # 初始化遊戲狀態
+        # Initialize game state
         self.reset_game()
     
     def reset_game(self):
-        """重置遊戲狀態"""
-        # 遊戲板 (3x3)，0=空, 1=X, 2=O
+        """Reset game state"""
+        # Game board (3x3), 0=empty, 1=X, 2=O
         self.board = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
         
-        # 游標位置
+        # Cursor position
         self.cursor_x = 1
         self.cursor_y = 1
         
-        # 當前玩家 (1=X, 2=O)
+        # Current player (1=X, 2=O)
         self.current_player = 1
         
-        # 遊戲狀態
+        # Game state
         self.game_over = False
         self.paused = False
-        self.winner = 0  # 0=平局, 1=X贏, 2=O贏
+        self.winner = 0  # 0=draw, 1=X wins, 2=O wins
         
-        # 最後的輸入時間 (用於控制輸入頻率)
+        # Last input time (for input frequency control)
         self.last_input_time = time.time()
-        self.input_delay = 0.2  # 秒
+        self.input_delay = 0.2  # seconds
         
-        # 電腦玩家
+        # Computer player
         self.vs_computer = True
-        self.computer_delay = 1.0  # 電腦決策延遲 (秒)
+        self.computer_delay = 1.0  # Computer decision delay (seconds)
         self.computer_last_move = time.time()
     
     def make_move(self, x, y):
-        """進行遊戲回合"""
-        # 如果該格子已被佔用，則不做任何事
+        """Make a game move"""
+        # If the cell is already occupied, do nothing
         if self.board[y][x] != 0:
             return False
         
-        # 放置棋子
+        # Place the piece
         self.board[y][x] = self.current_player
         
-        # 播放音效
+        # Play sound effect
         if self.buzzer:
             self.buzzer.play_tone(frequency=600, duration=0.2)
         
-        # 檢查遊戲是否結束
+        # Check if the game is over
         if self.check_win():
             self.game_over = True
             self.winner = self.current_player
@@ -89,26 +89,26 @@ class TicTacToeGame:
             if self.buzzer:
                 self.buzzer.play_tone(frequency=400, duration=0.8)
         else:
-            # 切換玩家
+            # Switch player
             self.current_player = 2 if self.current_player == 1 else 1
         
         return True
     
     def check_win(self):
-        """檢查是否有人獲勝"""
+        """Check if there is a winner"""
         player = self.current_player
         
-        # 檢查水平線
+        # Check rows
         for y in range(3):
             if all(self.board[y][x] == player for x in range(3)):
                 return True
         
-        # 檢查垂直線
+        # Check columns
         for x in range(3):
             if all(self.board[y][x] == player for y in range(3)):
                 return True
         
-        # 檢查對角線
+        # Check diagonals
         if self.board[0][0] == player and self.board[1][1] == player and self.board[2][2] == player:
             return True
         if self.board[0][2] == player and self.board[1][1] == player and self.board[2][0] == player:
@@ -117,7 +117,7 @@ class TicTacToeGame:
         return False
     
     def check_draw(self):
-        """檢查是否平局"""
+        """Check if the game is a draw"""
         for y in range(3):
             for x in range(3):
                 if self.board[y][x] == 0:
@@ -125,8 +125,8 @@ class TicTacToeGame:
         return True
     
     def computer_move(self):
-        """電腦玩家進行回合"""
-        # 檢查是否該電腦行動
+        """Computer player makes a move"""
+        # Check if it's the computer's turn
         if not self.vs_computer or self.current_player != 2:
             return False
         
@@ -136,7 +136,7 @@ class TicTacToeGame:
         
         self.computer_last_move = current_time
         
-        # 檢查是否可以贏
+        # Check if the computer can win
         for y in range(3):
             for x in range(3):
                 if self.board[y][x] == 0:
@@ -146,7 +146,7 @@ class TicTacToeGame:
                         return self.make_move(x, y)
                     self.board[y][x] = 0
         
-        # 檢查是否需要阻擋對手
+        # Check if the computer needs to block the opponent
         for y in range(3):
             for x in range(3):
                 if self.board[y][x] == 0:
@@ -156,11 +156,11 @@ class TicTacToeGame:
                         return self.make_move(x, y)
                     self.board[y][x] = 0
         
-        # 嘗試佔據中央
+        # Try to take the center
         if self.board[1][1] == 0:
             return self.make_move(1, 1)
         
-        # 隨機移動
+        # Random move
         empty_cells = []
         for y in range(3):
             for x in range(3):
@@ -174,18 +174,18 @@ class TicTacToeGame:
         return False
     
     def check_win_for_player(self, player):
-        """檢查指定玩家是否獲勝"""
-        # 檢查水平線
+        """Check if the specified player has won"""
+        # Check rows
         for y in range(3):
             if all(self.board[y][x] == player for x in range(3)):
                 return True
         
-        # 檢查垂直線
+        # Check columns
         for x in range(3):
             if all(self.board[y][x] == player for y in range(3)):
                 return True
         
-        # 檢查對角線
+        # Check diagonals
         if self.board[0][0] == player and self.board[1][1] == player and self.board[2][2] == player:
             return True
         if self.board[0][2] == player and self.board[1][1] == player and self.board[2][0] == player:
@@ -194,7 +194,7 @@ class TicTacToeGame:
         return False
     
     def update(self, controller_input=None):
-        """更新遊戲狀態"""
+        """Update game state"""
         if self.game_over or self.paused:
             if controller_input and controller_input.get("start_pressed"):
                 if self.game_over:
@@ -203,11 +203,11 @@ class TicTacToeGame:
                     self.paused = False
             return {"game_over": self.game_over, "winner": self.winner}
         
-        # 處理電腦移動
+        # Handle computer move
         if self.vs_computer and self.current_player == 2:
             self.computer_move()
         
-        # 處理玩家輸入
+        # Handle player input
         current_time = time.time()
         if current_time - self.last_input_time < self.input_delay:
             return {"game_over": self.game_over, "winner": self.winner}
@@ -244,27 +244,27 @@ class TicTacToeGame:
         return {"game_over": self.game_over, "winner": self.winner}
     
     def render(self, screen):
-        """渲染遊戲畫面"""
-        # 清除螢幕
+        """Render game screen"""
+        # Clear the screen
         screen.fill(self.BLACK)
         
-        # 繪製遊戲板背景
+        # Draw game board background
         board_rect = pygame.Rect(self.board_x, self.board_y, self.board_size, self.board_size)
         pygame.draw.rect(screen, self.WHITE, board_rect)
         
-        # 繪製網格線
+        # Draw grid lines
         for i in range(1, 3):
-            # 垂直線
+            # Vertical lines
             start_pos = (self.board_x + i * self.grid_size, self.board_y)
             end_pos = (self.board_x + i * self.grid_size, self.board_y + self.board_size)
             pygame.draw.line(screen, self.BLACK, start_pos, end_pos, self.line_width)
             
-            # 水平線
+            # Horizontal lines
             start_pos = (self.board_x, self.board_y + i * self.grid_size)
             end_pos = (self.board_x + self.board_size, self.board_y + i * self.grid_size)
             pygame.draw.line(screen, self.BLACK, start_pos, end_pos, self.line_width)
         
-        # 繪製棋子
+        # Draw pieces
         for y in range(3):
             for x in range(3):
                 if self.board[y][x] != 0:
@@ -283,40 +283,40 @@ class TicTacToeGame:
                         radius = self.grid_size // 3
                         pygame.draw.circle(screen, self.BLUE, (center_x, center_y), radius, 8)
         
-        # 繪製游標
+        # Draw cursor
         if not self.game_over and not self.paused and (not self.vs_computer or self.current_player == 1):
             cursor_x = self.board_x + self.cursor_x * self.grid_size
             cursor_y = self.board_y + self.cursor_y * self.grid_size
             cursor_rect = pygame.Rect(cursor_x, cursor_y, self.grid_size, self.grid_size)
             pygame.draw.rect(screen, self.YELLOW, cursor_rect, 5)
         
-        # 繪製遊戲資訊
+        # Draw game info
         font = pygame.font.Font(None, 36)
         
-        # 顯示當前玩家
+        # Show current player
         if not self.game_over and not self.paused:
-            player_text = f"當前玩家: {'X (你)' if self.current_player == 1 else 'O (電腦)' if self.vs_computer else 'O (玩家2)'}"
+            player_text = f"Current Player: {'X (You)' if self.current_player == 1 else 'O (Computer)' if self.vs_computer else 'O (Player 2)'}"
             player_surface = font.render(player_text, True, self.WHITE)
             screen.blit(player_surface, (20, 20))
         
-        # 顯示遊戲模式
-        mode_text = "模式: " + ("VS 電腦" if self.vs_computer else "雙人對戰")
+        # Show game mode
+        mode_text = "Mode: " + ("VS Computer" if self.vs_computer else "Two Players")
         mode_surface = font.render(mode_text, True, self.WHITE)
         screen.blit(mode_surface, (self.width - mode_surface.get_width() - 20, 20))
         
-        # 顯示控制提示
-        hint_text = "按 Y 切換模式，A 選擇，方向鍵移動"
+        # Show control hints
+        hint_text = "Press Y to toggle mode, A to select, arrows to move"
         hint_surface = font.render(hint_text, True, self.GRAY)
         screen.blit(hint_surface, (self.width // 2 - hint_surface.get_width() // 2, self.height - 40))
         
-        # 遊戲結束畫面
+        # Game over screen
         if self.game_over:
             self.draw_game_over(screen)
         elif self.paused:
             self.draw_pause(screen)
     
     def draw_game_over(self, screen):
-        """繪製遊戲結束畫面"""
+        """Draw game over screen"""
         overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 128))
         screen.blit(overlay, (0, 0))
@@ -324,31 +324,31 @@ class TicTacToeGame:
         font = pygame.font.Font(None, 72)
         
         if self.winner == 0:
-            result_text = "平局！"
+            result_text = "Draw!"
             color = self.YELLOW
         else:
             if self.winner == 1:
-                result_text = "X 獲勝！"
+                result_text = "X Wins!"
                 color = self.RED
             else:
-                result_text = "O 獲勝！" + (" (電腦贏了)" if self.vs_computer else " (玩家2贏了)")
+                result_text = "O Wins!" + (" (Computer wins)" if self.vs_computer else " (Player 2 wins)")
                 color = self.BLUE
         
         text = font.render(result_text, True, color)
         screen.blit(text, (self.width // 2 - text.get_width() // 2, self.height // 2 - 50))
         
         font = pygame.font.Font(None, 36)
-        restart_text = font.render("按 Start 重新開始", True, self.WHITE)
+        restart_text = font.render("Press Start to Restart", True, self.WHITE)
         screen.blit(restart_text, (self.width // 2 - restart_text.get_width() // 2, self.height // 2 + 20))
     
     def draw_pause(self, screen):
-        """繪製暫停畫面"""
+        """Draw pause screen"""
         overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 128))
         screen.blit(overlay, (0, 0))
         
         font = pygame.font.Font(None, 72)
-        text = font.render("暫停", True, self.YELLOW)
+        text = font.render("Paused", True, self.YELLOW)
         screen.blit(text, (self.width // 2 - text.get_width() // 2, self.height // 2 - 50))
 
     
@@ -361,7 +361,7 @@ if __name__ == "__main__":
     try:
         pygame.init()
         screen = pygame.display.set_mode((800, 600))
-        pygame.display.set_caption("井字遊戲測試")
+        pygame.display.set_caption("Tic Tac Toe Game Test")
         
         game = TicTacToeGame(800, 600)
         clock = pygame.time.Clock()
@@ -390,5 +390,5 @@ if __name__ == "__main__":
         
         pygame.quit()
     except Exception as e:
-        print(f"遊戲執行錯誤: {e}")
+        print(f"Game execution error: {e}")
         pygame.quit()
