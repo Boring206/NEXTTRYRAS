@@ -64,12 +64,11 @@ class BrickBreakerGame:
 
         # 遊戲速度相關
         self.clock = pygame.time.Clock()
-        self.fps = 60
-
-        # 球和板的初始參數
+        self.fps = 60        # 球和板的初始參數
         self.initial_paddle_width = 100
         self.paddle_width = self.initial_paddle_width # 可變的板寬度
         self.paddle_height = 15
+        self.paddle_speed = 8  # 板的移動速度
         self.ball_radius = 8
         self.initial_ball_speed = 4.5 # 稍微降低初始速度
         self.ball_speed = self.initial_ball_speed # 可變的球速
@@ -192,6 +191,17 @@ class BrickBreakerGame:
             self.last_paddle_hit_time = current_time
 
         self.ball_y = self.paddle_y - self.ball_radius - 0.1
+
+    def move_paddle(self, direction):
+        """移動板子"""
+        if direction == "left":
+            self.paddle_x = max(0, self.paddle_x - self.paddle_speed)
+        elif direction == "right":
+            # 檢查是否有寬板道具效果
+            current_width = self.paddle_width
+            if hasattr(self, 'active_power_up_effects') and 'PADDLE_GROW' in self.active_power_up_effects:
+                current_width = self.paddle_width * self.power_up_definitions['PADDLE_GROW']['value']
+            self.paddle_x = min(self.width - current_width, self.paddle_x + self.paddle_speed)
 
     def handle_ball_brick_collision(self, brick_idx):
         """處理球與磚塊的碰撞，計算分數和聲音。"""
@@ -425,15 +435,17 @@ class BrickBreakerGame:
 
             # 左搖桿輸入處理（連續移動）
             stick_x = controller_input.get("left_stick_x", 0.0)
-            
-            # 應用搖桿移動（帶縮放）
+              # 應用搖桿移動（帶縮放）
             if abs(stick_x) > self.stick_threshold:
                 # 根據搖桿偏移縮放移動量
                 movement_amount = self.paddle_speed * (abs(stick_x) * self.stick_speed_multiplier)
                 if stick_x < -self.stick_threshold:  # 向左
                     self.paddle_x = max(0, self.paddle_x - movement_amount)
                 elif stick_x > self.stick_threshold:  # 向右
-                    current_width = self.paddle_width * 2 if self.active_power_ups['wide_paddle']['active'] else self.paddle_width
+                    # 檢查是否有板子變大的道具效果
+                    current_width = self.paddle_width
+                    if 'PADDLE_GROW' in self.active_power_up_effects:
+                        current_width = self.paddle_width * self.power_up_definitions['PADDLE_GROW']['value']
                     self.paddle_x = min(self.width - current_width, self.paddle_x + movement_amount)
 
             # D-pad 輸入（保留原有邏輯，優先級較高）

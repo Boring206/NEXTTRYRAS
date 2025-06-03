@@ -113,8 +113,20 @@ class MemoryMatchGame:
             except pygame.error as e:
                 print(f"Pygame mixer could not be initialized or sound files not found: {e}")
                 self._internal_buzzer_active = False
+                # Initialize sound attributes as None when mixer fails
+                self.sound_flip = None
+                self.sound_match = None
+                self.sound_nomatch = None
+                self.sound_win = None
+                self.sound_select = None
         else:
             print("External buzzer object provided.")
+            # Initialize sound attributes as None when using external buzzer
+            self.sound_flip = None
+            self.sound_match = None
+            self.sound_nomatch = None
+            self.sound_win = None
+            self.sound_select = None
 
     def _load_sound(self, filename):
         try:
@@ -273,24 +285,26 @@ class MemoryMatchGame:
         if not card or card['revealed'] or card['matched'] or card['flipping']:
             return False
 
-        card['flipping'] = True
+        # Immediately reveal the card instead of using animation
+        card['revealed'] = True
+        card['flipping'] = False
         card['flip_start_time'] = time.time()
-        card['flip_progress'] = 0 # Reset progress
+        card['flip_progress'] = 1.0
 
-        # revealed will be set to True mid-animation or after
         self.revealed_cards.append(card)
 
         self._play_sound(self.sound_flip, frequency=600, duration=0.1)
         self.moves += 1
+        
+        # Check for match immediately if we have 2 cards
+        if len(self.revealed_cards) == 2:
+            self.check_match()
+        
         return True
 
     def check_match(self):
         if len(self.revealed_cards) == 2:
             card1, card2 = self.revealed_cards
-
-            # Ensure flipping animation is complete for both before checking
-            if card1['flipping'] or card2['flipping']:
-                return
 
             if card1['color'] == card2['color']: # Match
                 card1['matched'] = True
@@ -312,12 +326,13 @@ class MemoryMatchGame:
                     time_bonus = max(0, (self.total_pairs * 20) - int(elapsed_time)) # Adjusted time bonus
                     self.score += time_bonus
                     self._play_sound(self.sound_win) # Or self.buzzer.play_win_melody()
+                
                 self.revealed_cards = [] # Clear for next turn
             else: # No match
                 self.flip_back_active = True
                 self.flip_back_timer_start = time.time()
                 self._play_sound(self.sound_nomatch, frequency=300, duration=0.2)
-            # Don't clear revealed_cards immediately for no-match, do it after flip_back_timer
+                # Don't clear revealed_cards yet, do it after flip_back_timer
 
     def create_match_particles(self, card):
         rect = self.get_card_rect(card)
@@ -355,6 +370,9 @@ class MemoryMatchGame:
         delta_time = current_time - getattr(self, '_last_update_time', current_time)
         self._last_update_time = current_time
 
+        # Update particles
+        self.update_particles(delta_time)
+
         if events is None: events = []
 
         # Handle mouse clicks for menu and game
@@ -362,7 +380,6 @@ class MemoryMatchGame:
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1: # Left click
                     self.handle_click(event.pos)
-
 
         # --- Game State Logic ---
         if self.game_state == self.MENU:
@@ -479,7 +496,8 @@ class MemoryMatchGame:
                     self.cursor_col += 1
                     moved_cursor = True
                 elif controller_input.get("a_pressed"):
-                    self.attempt_flip_card(self.cursor_row, self.cursor_col)
+                    if len(self.revealed_cards) < 2 and not self.flip_back_active:
+                        self.attempt_flip_card(self.cursor_row, self.cursor_col)
                     moved_cursor = True
 
                 if moved_cursor:
@@ -487,8 +505,13 @@ class MemoryMatchGame:
                     if self.buzzer:
                         self.buzzer.play_tone(frequency=250, duration=0.05)
 
+            # Handle flip back timing for non-matching cards
             if self.flip_back_active and current_time - self.flip_back_timer_start >= 1.0:
-                self.check_match()
+                # Flip back the non-matching cards
+                for card in self.revealed_cards:
+                    card['revealed'] = False
+                self.revealed_cards = []
+                self.flip_back_active = False
 
         elif self.game_state == self.GAME_OVER:
             if controller_input and controller_input.get("a_pressed"):

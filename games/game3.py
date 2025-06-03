@@ -113,6 +113,7 @@ class SpaceInvadersGame:
         # 稍微提早UFO出現時間
         self.ufo_spawn_interval = random.randint(int(8 * self.fps), int(15 * self.fps)) # UFO出現間隔
         self.ufo_y_pos = 50 # UFO出現的Y軸位置
+        self.ufo_sound_playing = False # Track UFO sound state
 
         # 道具重置
         self.power_ups = [] # 畫面上活動的道具列表
@@ -288,7 +289,9 @@ class SpaceInvadersGame:
                     'direction': direction, # UFO飛行方向
                     'score': random.choice([50, 100, 150, 200, 300]) # UFO分數
                 }
-                if self.buzzer: self.buzzer.play_tone(sound_name="ufo_flying_sound", loop=True) # 播放UFO飛行音效 (循環)
+                if self.buzzer:
+                    self.buzzer.play_tone(frequency=800, duration=0.1) # UFO出現音效
+                    self.ufo_sound_playing = True
         else: # 如果UFO已活動
             if self.ufo:
                 self.ufo['rect'].x += self.ufo_speed * self.ufo['direction'] # UFO移動
@@ -297,7 +300,7 @@ class SpaceInvadersGame:
                    (self.ufo['direction'] == -1 and self.ufo['rect'].right < 0):
                     self.ufo_active = False # UFO變為非活動
                     self.ufo = None
-                    if self.buzzer: self.buzzer.play_tone(sound_name="ufo_flying_sound", stop=True) # 停止UFO飛行音效
+                    self.ufo_sound_playing = False
 
     def update_power_ups(self):
         """更新道具位置和效果計時"""
@@ -314,7 +317,7 @@ class SpaceInvadersGame:
                 if self.active_power_up_type == "rapid_fire": # 如果是快速射擊道具
                     self.shot_delay = self.shot_delay_normal # 恢復正常射擊間隔
                 self.active_power_up_type = None # 清除啟動的道具類型
-                if self.buzzer: self.buzzer.play_tone(sound_name="power_down_sound") # 播放道具效果結束音效
+                if self.buzzer: self.buzzer.play_tone(frequency=400, duration=0.1) # 道具效果結束音效
 
 
     def check_collisions(self):
@@ -336,8 +339,7 @@ class SpaceInvadersGame:
                 if bullet in self.bullets: self.bullets.remove(bullet) # 移除子彈
                 self.score += self.ufo['score'] # 增加UFO分數
                 if self.buzzer:
-                    self.buzzer.play_tone(sound_name="ufo_flying_sound", stop=True) # 停止UFO飛行音效
-                    self.buzzer.play_tone(sound_name="ufo_hit_sound") # 播放UFO被擊中音效
+                    self.buzzer.play_tone(frequency=1200, duration=0.3) # UFO被擊中音效
                 
                 # UFO被擊落，掉落道具 (快速射擊)
                 pu_x = self.ufo['rect'].centerx - self.power_up_width // 2
@@ -349,6 +351,7 @@ class SpaceInvadersGame:
 
                 self.ufo_active = False # UFO變為非活動
                 self.ufo = None
+                self.ufo_sound_playing = False
                 break # 子彈已消耗，無需再檢查其他碰撞
 
         # 敵人子彈 vs 玩家
@@ -360,7 +363,7 @@ class SpaceInvadersGame:
                 if self.buzzer: self.buzzer.play_tone(frequency=200, duration=0.2) # 玩家被擊中音效
                 if self.lives <= 0: # 如果生命值耗盡
                     self.game_over = True # 遊戲結束
-                    if self.buzzer: self.buzzer.play_tone(sound_name="game_over_melody_invaders") # 播放遊戲結束音效
+                    if self.buzzer: self.buzzer.play_tone(frequency=100, duration=0.5) # 遊戲結束音效
                 return # 避免一幀內多次受傷判定
 
         # 子彈 (玩家和敵人) vs 掩體
@@ -384,8 +387,7 @@ class SpaceInvadersGame:
                     self.active_power_up_type = 'rapid_fire' # 設定啟動的道具類型
                     self.shot_delay = self.shot_delay_rapid_fire # 設定為快速射擊間隔
                     self.power_up_timer = self.power_up_duration # 設定道具效果持續時間
-                    if self.buzzer: self.buzzer.play_tone(sound_name="power_up_collect_sound") # 播放拾取道具音效
-
+                    if self.buzzer: self.buzzer.play_tone(frequency=900, duration=0.2) # 拾取道具音效
 
     def check_wave_complete(self):
         """檢查當前波是否完成"""
@@ -408,7 +410,7 @@ class SpaceInvadersGame:
                  self.active_power_up_type = None
                  self.power_up_timer = 0
 
-            if self.buzzer: self.buzzer.play_tone(sound_name="wave_complete_sound") # 播放過關音效
+            if self.buzzer: self.buzzer.play_tone(frequency=700, duration=0.4) # 過關音效
 
     def update(self, controller_input=None):
         """更新遊戲狀態"""
@@ -549,9 +551,9 @@ class SpaceInvadersGame:
 
 
         # 繪製分數、波數和生命
-        score_text = self.font_medium.render(f"分數: {self.score}", True, self.WHITE)
-        wave_text = self.font_medium.render(f"波數: {self.wave}", True, self.WHITE)
-        lives_text = self.font_medium.render(f"生命: {self.lives}", True, self.WHITE)
+        score_text = self.font_medium.render(f"score: {self.score}", True, self.WHITE)
+        wave_text = self.font_medium.render(f"wave: {self.wave}", True, self.WHITE)
+        lives_text = self.font_medium.render(f"lives: {self.lives}", True, self.WHITE)
         screen.blit(score_text, (10, 10))
         screen.blit(wave_text, (self.width // 2 - wave_text.get_width() // 2, 10)) # 波數顯示在中間
         screen.blit(lives_text, (self.width - lives_text.get_width() - 10, 10)) # 生命顯示在右邊
@@ -579,7 +581,7 @@ class SpaceInvadersGame:
         screen.blit(title_surf, (self.width // 2 - title_surf.get_width() // 2, self.height // 2 - 80)) # 標題置中偏上
 
         if title_text == "遊戲結束": # 如果是遊戲結束畫面，額外顯示最終分數
-            final_score_surf = self.font_medium.render(f"最終分數: {self.score} (波數 {self.wave})", True, self.WHITE)
+            final_score_surf = self.font_medium.render(f"score: {self.score} (wave {self.wave})", True, self.WHITE)
             screen.blit(final_score_surf, (self.width // 2 - final_score_surf.get_width() // 2, self.height // 2 )) # 分數置中
         
         subtitle_surf = self.font_medium.render(subtitle_text, True, self.WHITE) # 渲染副標題文字 (提示操作)
@@ -603,15 +605,10 @@ if __name__ == "__main__":
 
         # 簡易 Buzzer 模擬 (用於測試，實際應傳入真實的 Buzzer 物件)
         class MockBuzzer:
-            def play_tone(self, frequency=None, duration=None, sound_name=None, loop=False, stop=False):
+            def play_tone(self, frequency=None, duration=None):
                 # 模擬播放音效的行為，實際應用中會與硬體互動
-                if sound_name:
-                    print(f"Buzzer 模擬: 播放 '{sound_name}' (循環={loop}, 停止={stop})")
-                elif frequency and duration :
+                if frequency and duration:
                     print(f"Buzzer 模擬: 播放音調 freq={frequency}, dur={duration}")
-                elif stop: # 模擬停止特定聲音
-                     print(f"Buzzer 模擬: 停止 '{sound_name if sound_name else '目前音效'}'")
-
 
         mock_buzzer_instance = MockBuzzer() # 建立模擬蜂鳴器實例
         game = SpaceInvadersGame(screen_width, screen_height, buzzer=mock_buzzer_instance) # 建立遊戲實例

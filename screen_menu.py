@@ -233,52 +233,65 @@ class SPIScreenManager:
         title = game_data.get("name", "遊戲說明")
         raw_desc = game_data.get("description", "無說明")
         
-        lines_to_display = []
-        if title: lines_to_display.append({"text": title, "font": self.font_medium, "color": self.YELLOW})
-
+        # Title at top
+        title_y = 5
+        
+        # Prepare description lines for center placement
+        description_lines = []
         char_w_est_instr = self.get_text_width("測", self.font_small)
         if char_w_est_instr == 0: char_w_est_instr = 7
-        max_chars = self.width // char_w_est_instr -1
-        if max_chars <=0 : max_chars = 8
+        max_chars = self.width // char_w_est_instr - 1
+        if max_chars <= 0: max_chars = 8
 
         current_line_desc = ""
         # 簡單分行，可以考慮更智能的斷詞
         for word_group in raw_desc.replace('。', '。\n').replace('！', '！\n').replace('？', '？\n').split('\n'):
             words = list(word_group) # 按字分割
             for word_char in words:
-                if self.get_text_width(current_line_desc + word_char, self.font_small) <= self.width - 10 : # 留點邊距
+                if self.get_text_width(current_line_desc + word_char, self.font_small) <= self.width - 10: # 留點邊距
                     current_line_desc += word_char
                 else:
-                    if current_line_desc: lines_to_display.append({"text":current_line_desc, "font":self.font_small, "color":self.WHITE})
+                    if current_line_desc: 
+                        description_lines.append(current_line_desc)
                     current_line_desc = word_char
-            if current_line_desc: #處理剩餘部分
-                 lines_to_display.append({"text":current_line_desc, "font":self.font_small, "color":self.WHITE})
-                 current_line_desc = ""
+            if current_line_desc: # 處理剩餘部分
+                description_lines.append(current_line_desc)
+                current_line_desc = ""
 
-
-        lines_to_display.append({"text": " ", "font": self.font_small, "color": self.WHITE}) # 空行
-        lines_to_display.append({"text": "A:開始 B:返回", "font": self.font_small, "color": self.CYAN})
-
-        current_y_pos = 5
-        line_h_ratio = 1.3
+        # Calculate total height of description for vertical centering
+        line_height = self.get_text_height("T", self.font_small)
+        title_height = self.get_text_height("T", self.font_medium)
+        control_hint_height = self.get_text_height("T", self.font_small)
+        
+        total_desc_height = len(description_lines) * int(line_height * 1.3)
+        
+        # Calculate center position for description
+        available_space = self.height - title_height - 40 - control_hint_height - 20 # Reserve space for title, controls and margins
+        desc_start_y = title_height + 30 + (available_space - total_desc_height) // 2
+        
         with canvas(self.device) as draw:
             draw.rectangle(self.device.bounding_box, fill=self.BLACK)
-            for line_info in lines_to_display:
-                font = line_info["font"]
-                text = line_info["text"]
-                color = line_info["color"]
-                # text_box = draw.textbbox((5, current_y_pos), text, font=font)
-                # text_w = text_box[2] - text_box[0]
-                text_w = self.get_text_width(text, font)
-                
-                x_text_pos = 5 # 預設靠左
-                # 如果是標題或提示，可以考慮居中
-                if text == title or "A:開始" in text:
-                     x_text_pos = (self.width - text_w) // 2
-
-                draw.text((x_text_pos, current_y_pos), text, font=font, fill=color)
-                current_y_pos += int(self.get_text_height("T", font) * line_h_ratio)
-
+            
+            # Draw title at top
+            if title:
+                title_w = self.get_text_width(title, self.font_medium)
+                x_title_pos = (self.width - title_w) // 2
+                draw.text((x_title_pos, title_y), title, font=self.font_medium, fill=self.YELLOW)
+            
+            # Draw description lines centered
+            current_y_pos = desc_start_y
+            for line in description_lines:
+                text_w = self.get_text_width(line, self.font_small)
+                x_text_pos = (self.width - text_w) // 2  # Center horizontally
+                draw.text((x_text_pos, current_y_pos), line, font=self.font_small, fill=self.WHITE)
+                current_y_pos += int(line_height * 1.3)
+            
+            # Draw control hints at bottom
+            control_text = "A:開始 B:返回"
+            control_w = self.get_text_width(control_text, self.font_small)
+            x_control_pos = (self.width - control_w) // 2
+            control_y = self.height - control_hint_height - 10  # 10 pixels from bottom
+            draw.text((x_control_pos, control_y), control_text, font=self.font_small, fill=self.CYAN)
 
     def display_game_over(self, score, best_score=None):
         if not self.is_available(): return

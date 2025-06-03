@@ -202,7 +202,7 @@ class WhacAMoleGame:
             
             # Play game over sound
             if self.buzzer:
-                self.buzzer.play_game_over_melody()
+                self.buzzer.play_tone(frequency=200, duration=0.5)
             
             return {"game_over": True, "score": self.score}
         
@@ -223,10 +223,52 @@ class WhacAMoleGame:
                 self.hammer_angle = 0
         
         # Handle player input
-        if controller_input:
+        if controller_input and current_time - self.last_input_time >= self.input_delay:
+            # Initialize left stick parameters if not exists
+            if not hasattr(self, 'stick_threshold'):
+                self.stick_threshold = 0.7
+                self.last_stick_direction = None
+            
             input_detected = False
             
-            # Move hammer
+            # Left stick input processing (single-trigger movement)
+            stick_x = controller_input.get("left_stick_x", 0.0)
+            stick_y = controller_input.get("left_stick_y", 0.0)
+            stick_direction = None
+            
+            if abs(stick_x) > self.stick_threshold or abs(stick_y) > self.stick_threshold:
+                if abs(stick_x) > abs(stick_y):
+                    if stick_x > self.stick_threshold:
+                        stick_direction = "right"
+                    elif stick_x < -self.stick_threshold:
+                        stick_direction = "left"
+                else:
+                    if stick_y > self.stick_threshold:
+                        stick_direction = "down"
+                    elif stick_y < -self.stick_threshold:
+                        stick_direction = "up"
+            
+            # Apply stick movement (single-trigger with delay)
+            if stick_direction and stick_direction != self.last_stick_direction:
+                if stick_direction == "up":
+                    self.hammer_idx = max(0, self.hammer_idx - self.grid_size)
+                    input_detected = True
+                elif stick_direction == "down":
+                    self.hammer_idx = min(len(self.grid_positions) - 1, self.hammer_idx + self.grid_size)
+                    input_detected = True
+                elif stick_direction == "left":
+                    if self.hammer_idx % self.grid_size > 0:
+                        self.hammer_idx -= 1
+                    input_detected = True
+                elif stick_direction == "right":
+                    if self.hammer_idx % self.grid_size < self.grid_size - 1:
+                        self.hammer_idx += 1
+                    input_detected = True
+                self.last_stick_direction = stick_direction
+            elif not stick_direction:
+                self.last_stick_direction = None
+            
+            # D-pad input (preserve original logic, takes priority)
             if controller_input.get("up_pressed"):
                 self.hammer_idx = max(0, self.hammer_idx - self.grid_size)
                 input_detected = True
@@ -260,9 +302,11 @@ class WhacAMoleGame:
                 input_detected = True
                 return {"game_over": self.game_over, "score": self.score, "paused": self.paused}
             
-            # If input is detected, play sound
-            if input_detected and self.buzzer and not controller_input.get("a_pressed"):
-                self.buzzer.play_tone("navigate")
+            # If input is detected, play sound and update input timing
+            if input_detected:
+                self.last_input_time = current_time
+                if self.buzzer and not controller_input.get("a_pressed"):
+                    self.buzzer.play_tone(frequency=300, duration=0.05)
         
         return {"game_over": self.game_over, "score": self.score}
     
@@ -387,8 +431,13 @@ if __name__ == "__main__":
         screen = pygame.display.set_mode((screen_width, screen_height))
         pygame.display.set_caption("Whac-A-Mole Game Test")
         
+        # Simple Buzzer simulation (for testing, actual should pass in real Buzzer object)
+        class MockBuzzer:
+            def play_tone(self, frequency=None, duration=None):
+                print(f"Buzzer: freq={frequency}, dur={duration}")
+        
         # Create game instance
-        game = WhacAMoleGame(screen_width, screen_height)
+        game = WhacAMoleGame(screen_width, screen_height, buzzer=MockBuzzer())
         
         # Simulate controller input key mapping
         key_mapping = {

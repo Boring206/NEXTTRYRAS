@@ -331,6 +331,7 @@ class ReactionTestGame:
                 self.stick_threshold = 0.7  # Higher threshold for precise menu navigation
                 self.last_stick_direction = None
                 self.stick_input_delay = 0.3  # Longer delay for menu navigation
+                self.last_stick_input_time = 0
 
             # A button - Reaction button
             if controller_input.get("a_pressed"):
@@ -363,7 +364,7 @@ class ReactionTestGame:
                 
                 # Apply stick movement (single-trigger with delay)
                 if stick_direction and stick_direction != self.last_stick_direction:
-                    if current_time - getattr(self, 'last_stick_input_time', 0) > self.stick_input_delay:
+                    if current_time - self.last_stick_input_time > self.stick_input_delay:
                         if stick_direction == "up":
                             self.current_mode_index = (self.current_mode_index - 1) % len(self.test_modes)
                         elif stick_direction == "down":
@@ -664,14 +665,19 @@ class ReactionTestGame:
         """Render particle effects"""
         for particle in self.particles:
             if particle['life'] > 0:
-                alpha = int(particle['life'] * 255)
+                alpha = max(0, min(255, int(particle['life'] * 255)))
                 size = max(1, int(particle['size'] * particle['life']))
                 
-                # Create semi-transparent surface
-                particle_surf = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
-                color_with_alpha = (*particle['color'], alpha)
-                pygame.draw.circle(particle_surf, color_with_alpha, (size, size), size)
-                screen.blit(particle_surf, (particle['x'] - size, particle['y'] - size))
+                # Ensure color is valid RGB tuple
+                color = particle['color']
+                if isinstance(color, tuple) and len(color) >= 3:
+                    # Create semi-transparent surface
+                    particle_surf = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
+                    # Ensure color values are integers between 0-255
+                    safe_color = tuple(max(0, min(255, int(c))) for c in color[:3])
+                    color_with_alpha = (*safe_color, alpha)
+                    pygame.draw.circle(particle_surf, color_with_alpha, (size, size), size)
+                    screen.blit(particle_surf, (int(particle['x'] - size), int(particle['y'] - size)))
     
     def render_pause_overlay(self, screen):
         """Render pause overlay"""
@@ -705,8 +711,14 @@ if __name__ == "__main__":
         screen = pygame.display.set_mode((screen_width, screen_height))
         pygame.display.set_caption("Reaction Test Game")
         
+        # Simple Buzzer simulation (for testing)
+        class MockBuzzer:
+            def play_tone(self, frequency=None, duration=None):
+                if frequency and duration:
+                    print(f"Buzzer: freq={frequency}, dur={duration}")
+        
         # Create game instance
-        game = ReactionTestGame(screen_width, screen_height)
+        game = ReactionTestGame(screen_width, screen_height, buzzer=MockBuzzer())
         
         # Simulate controller input key mapping
         key_mapping = {

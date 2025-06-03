@@ -537,6 +537,18 @@ class EnhancedGameConsole:
         if not (self.hdmi_screen and self.font_title_main and self.font_item_menu and self.font_info_menu): return
         title_s = self.font_title_main.render(f"多功能遊戲機 v{VERSION}", True, (255,255,255))
         self.hdmi_screen.blit(title_s, (HDMI_SCREEN_WIDTH//2 - title_s.get_width()//2, 50))
+        
+        # Session statistics in top-right corner with smaller font
+        stats_t = f"本次遊玩: {self.session_stats['games_played']} 場 | 總分: {self.session_stats['total_score']}"
+        if self.font_tiny:  # Use smaller font
+            stats_s = self.font_tiny.render(stats_t, True, (150,150,150))
+        else:
+            stats_s = self.font_info_menu.render(stats_t, True, (150,150,150))
+        # Position in top-right corner
+        stats_x = HDMI_SCREEN_WIDTH - stats_s.get_width() - 10
+        stats_y = 10
+        self.hdmi_screen.blit(stats_s, (stats_x, stats_y))
+        
         for i, game in enumerate(self.games):
             color = (255,255,0) if i == self.current_selection else (200,200,200); y_pos = 150 + i * 45
             item_s = self.font_item_menu.render(f"{game['id']}. {game['name']}", True, color)
@@ -544,19 +556,15 @@ class EnhancedGameConsole:
             diff_c = {"Easy":(0,255,0),"Medium":(255,255,0),"Hard":(255,0,0)}.get(game.get("difficulty","Medium"),(255,255,255))
             diff_s = self.font_info_menu.render(f"[{game.get('difficulty','Medium')}]", True, diff_c)
             self.hdmi_screen.blit(diff_s, (600, y_pos + 10))
-        stats_y = HDMI_SCREEN_HEIGHT - 100
-        stats_t = f"本次遊玩: {self.session_stats['games_played']} 場 | 總分: {self.session_stats['total_score']}"
-        stats_s = self.font_info_menu.render(stats_t, True, (150,150,150))
-        self.hdmi_screen.blit(stats_s, (50, stats_y))
 
     def _render_instructions_on_hdmi(self, game_data):
         if not (self.hdmi_screen and self.font_title_main and self.font_text_instruction and self.font_hint_instruction): return
         title_s = self.font_title_main.render(game_data["name"], True, (255,255,255))
-        self.hdmi_screen.blit(title_s, (HDMI_SCREEN_WIDTH//2 - title_s.get_width()//2, 100))
+        self.hdmi_screen.blit(title_s, (HDMI_SCREEN_WIDTH//2 - title_s.get_width()//2, 80))  # Changed from 100 to 80
         diff = game_data.get("difficulty","Medium")
         diff_c = {"Easy":(0,255,0),"Medium":(255,255,0),"Hard":(255,0,0)}.get(diff,(255,255,255))
         diff_s = self.font_text_instruction.render(f"難度: {diff}", True, diff_c)
-        self.hdmi_screen.blit(diff_s, (HDMI_SCREEN_WIDTH//2 - diff_s.get_width()//2, 160))
+        self.hdmi_screen.blit(diff_s, (HDMI_SCREEN_WIDTH//2 - diff_s.get_width()//2, 180))  # Changed from 160 to 180
         desc_lines = game_data["description"].split('。'); y_offset = 0
         for line in desc_lines:
             if line.strip():
@@ -660,7 +668,6 @@ if __name__ == "__main__":
         # 確保在 game_console_instance 存在且其 run 方法已結束後才調用 cleanup
         # 如果 run() 是因為異常退出，可能需要手動調用 cleanup
         # 但正常的流程是 run() 結束後會自行調用 cleanup()
-        # 此處的 cleanup 是為了處理 run() 未正常啟動或 KeyboardInterrupt 的情況
         if game_console_instance and not game_console_instance.running: # 如果是因為 running=False 退出循環
              pass # cleanup 已在 run() 結束時調用
         elif game_console_instance: # 如果是因為其他原因 (如 KeyboardInterrupt) 導致 run() 未完成
