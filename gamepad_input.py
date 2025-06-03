@@ -86,11 +86,6 @@ class XboxController:
         if not self.is_connected or not self.controller:
             return None
 
-        # current_time = time.time() # 如果需要冷卻時間控制
-        # if current_time - self.last_input_time < self.input_cooldown:
-        #     return None 
-        # self.last_input_time = current_time
-
         pygame.event.pump() 
 
         self.prev_button_states = self.button_states.copy()
@@ -169,17 +164,22 @@ class XboxController:
                 self.controller.rumble(float(low_frequency_rumble), float(high_frequency_rumble), int(duration_ms))
                 logger.debug(f"控制器震動: Low={low_frequency_rumble}, High={high_frequency_rumble}, Duration={duration_ms}ms")
                 return True
-            except Exception as e: logger.warning(f"控制器震動失敗: {e}")
+            except Exception as e: 
+                logger.warning(f"控制器震動失敗: {e}")
         return False
 
     def stop_rumble(self):
         if self.is_connected and self.controller and hasattr(self.controller, 'rumble'):
-            try: self.controller.rumble(0, 0, 0); logger.debug("已停止控制器震動。")
-            except Exception: pass
+            try: 
+                self.controller.rumble(0, 0, 0)
+                logger.debug("已停止控制器震動。")
+            except Exception: 
+                pass
 
     def cleanup(self):
         if self.controller:
-            self.stop_rumble(); self.controller.quit()
+            self.stop_rumble()
+            self.controller.quit()
             self.controller = None
         self.is_connected = False
         logger.info(f"控制器 (ID: {self.joystick_id}) 資源已清理。")
@@ -193,13 +193,15 @@ if __name__ == '__main__':
 
     if pygame.joystick.get_count() == 0:
         logger.error("未偵測到任何遊戲控制器。請連接控制器後再試。")
-        pygame.quit(); exit()
+        pygame.quit()
+        exit()
 
     controller = XboxController(joystick_id=0)
 
     if not controller.is_connected:
         logger.error("控制器連接失敗，測試終止。")
-        pygame.quit(); exit()
+        pygame.quit()
+        exit()
 
     print(f"已連接控制器: {controller.controller.get_name()}")
     print("按任意按鈕或移動搖桿進行測試。按 Y 鍵測試震動。(Ctrl+C 結束)")
@@ -209,8 +211,10 @@ if __name__ == '__main__':
     try:
         while running:
             for event in pygame.event.get():
-                if event.type == pygame.QUIT: running = False
-                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE: running = False
+                if event.type == pygame.QUIT: 
+                    running = False
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE: 
+                    running = False
                 
                 # 打印詳細的 Pygame 搖桿事件
                 if event.type == pygame.JOYAXISMOTION:
@@ -226,7 +230,7 @@ if __name__ == '__main__':
                 elif event.type == pygame.JOYDEVICEADDED:
                     logger.info(f"偵測到新搖桿: Pygame Device Index={event.device_index}. Instance ID={event.instance_id if hasattr(event, 'instance_id') else 'N/A'}")
                     # 如果是我們正在使用的控制器斷開後重連，可能需要重新初始化
-                    if not controller.is_connected and event.device_index == controller.joystick_id : # 假設 device_index 對應 joystick_id
+                    if not controller.is_connected and event.device_index == controller.joystick_id: # 假設 device_index 對應 joystick_id
                         logger.info("嘗試重新初始化控制器...")
                         controller = XboxController(joystick_id=controller.joystick_id) # 重新實例化
                 elif event.type == pygame.JOYDEVICEREMOVED:
@@ -235,15 +239,12 @@ if __name__ == '__main__':
                         controller.is_connected = False # 更新狀態
 
             if not controller.is_connected:
-                # 清除上一行 (如果之前有打印 "控制器已斷開...")
-                # sys.stdout.write("\033[F\033[K")
                 print("控制器已斷開，請重新連接或結束測試...", end="\r")
                 time.sleep(0.5)
                 continue
             else:
                 # 如果剛重新連接，清除 "控制器已斷開" 的訊息
                 print(" " * 50, end="\r")
-
 
             inputs = controller.get_input() # 獲取處理後的輸入
             if inputs:
@@ -266,8 +267,8 @@ if __name__ == '__main__':
                     active_inputs_str.append(f"LStick({inputs['left_stick_x']:.2f},{inputs['left_stick_y']:.2f})")
                 if abs(inputs["right_stick_x"]) > 0.15 or abs(inputs["right_stick_y"]) > 0.15:
                     active_inputs_str.append(f"RStick({inputs['right_stick_x']:.2f},{inputs['right_stick_y']:.2f})")
-                if inputs["lt_value"] > 0.05 : active_inputs_str.append(f"LT:{inputs['lt_value']:.2f}")
-                if inputs["rt_value"] > 0.05 : active_inputs_str.append(f"RT:{inputs['rt_value']:.2f}")
+                if inputs["lt_value"] > 0.05: active_inputs_str.append(f"LT:{inputs['lt_value']:.2f}")
+                if inputs["rt_value"] > 0.05: active_inputs_str.append(f"RT:{inputs['rt_value']:.2f}")
 
                 dpad_str = []
                 if inputs["dpad_up"]: dpad_str.append("Up")
@@ -299,4 +300,3 @@ if __name__ == '__main__':
         pygame.joystick.quit()
         pygame.quit()
         print("測試結束，資源已清理。")
-
