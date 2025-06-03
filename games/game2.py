@@ -7,7 +7,6 @@ import random
 import pygame
 import time
 import math
-import os # Keep os for potential future use, though font paths are simplified
 from pygame.locals import *
 
 class PowerUp:
@@ -406,13 +405,12 @@ class BrickBreakerGame:
         """更新遊戲狀態。"""
         if self.game_over or self.paused:
             if controller_input and controller_input.get("start_pressed"):
-                if not hasattr(self, 'start_handled_time') or time.time() - self.start_handled_time > 0.5:
+                if not hasattr(self, 'last_start_press_time') or time.time() - self.last_start_press_time > 0.5:
                     if self.game_over:
-                        self.current_level = 0 # Game Over 後從第一關開始
                         self.reset_game()
                     else:
                         self.paused = False
-                    self.start_handled_time = time.time()
+                    self.last_start_press_time = time.time()
             return {"game_over": self.game_over, "score": self.score, "paused": self.paused, "level": self.current_level}
 
         # 更新活動中的道具效果
@@ -420,20 +418,40 @@ class BrickBreakerGame:
 
         # 處理輸入
         if controller_input:
-            paddle_move_speed = 12
-            if controller_input.get("left_pressed"):
-                self.paddle_x = max(0, self.paddle_x - paddle_move_speed)
-            if controller_input.get("right_pressed"):
-                self.paddle_x = min(self.width - self.paddle_width, self.paddle_x + paddle_move_speed)
+            # 初始化搖桿參數
+            if not hasattr(self, 'stick_threshold'):
+                self.stick_threshold = 0.3  # 連續移動的閾值
+                self.stick_speed_multiplier = 1.0  # 調整搖桿靈敏度
 
-            if not self.ball_launched and controller_input.get("a_pressed"):
+            # 左搖桿輸入處理（連續移動）
+            stick_x = controller_input.get("left_stick_x", 0.0)
+            
+            # 應用搖桿移動（帶縮放）
+            if abs(stick_x) > self.stick_threshold:
+                # 根據搖桿偏移縮放移動量
+                movement_amount = self.paddle_speed * (abs(stick_x) * self.stick_speed_multiplier)
+                if stick_x < -self.stick_threshold:  # 向左
+                    self.paddle_x = max(0, self.paddle_x - movement_amount)
+                elif stick_x > self.stick_threshold:  # 向右
+                    current_width = self.paddle_width * 2 if self.active_power_ups['wide_paddle']['active'] else self.paddle_width
+                    self.paddle_x = min(self.width - current_width, self.paddle_x + movement_amount)
+
+            # D-pad 輸入（保留原有邏輯，優先級較高）
+            if controller_input.get("left_pressed"):
+                self.move_paddle("left")
+            if controller_input.get("right_pressed"):
+                self.move_paddle("right")
+
+            # 發射球
+            if controller_input.get("a_pressed"):
                 self.ball_launched = True
                 if self.buzzer: self.buzzer.play_tone(frequency=600, duration=0.1)
 
+            # 暫停控制
             if controller_input.get("start_pressed"):
-                if not hasattr(self, 'start_handled_time') or time.time() - self.start_handled_time > 0.5:
+                if not hasattr(self, 'last_start_press_time') or time.time() - self.last_start_press_time > 0.5:
                     self.paused = not self.paused
-                    self.start_handled_time = time.time()
+                    self.last_start_press_time = time.time()
                     if self.buzzer: self.buzzer.play_tone(frequency=500, duration=0.1)
                     return {"game_over": self.game_over, "score": self.score, "paused": self.paused, "level": self.current_level}
 
@@ -689,7 +707,7 @@ if __name__ == "__main__":
 
         game_instance = BrickBreakerGame(screen_width_main, screen_height_main) # buzzer=None for test
 
-        key_action_map = {
+        key_mapping = {
             pygame.K_LEFT: "left_pressed",
             pygame.K_RIGHT: "right_pressed",
             pygame.K_SPACE: "a_pressed",
@@ -700,21 +718,17 @@ if __name__ == "__main__":
         game_clock = pygame.time.Clock()
 
         while game_running:
-            current_inputs = {action: False for action in key_action_map.values()}
+            controller_input = {action: False for action in key_mapping.values()}
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     game_running = False
-                # 允許按鍵重複觸發（用於平滑移動）
-                # if event.type == pygame.KEYDOWN:
-                #     if event.key in key_action_map:
-                #         current_inputs[key_action_map[event.key]] = True
 
             pressed_keys = pygame.key.get_pressed()
-            for key_code, action_name in key_action_map.items():
+            for key_code, action_name in key_mapping.items():
                 if pressed_keys[key_code]:
-                    current_inputs[action_name] = True
+                    controller_input[action_name] = True
 
-            game_state = game_instance.update(current_inputs)
+            game_state = game_instance.update(controller_input)
             game_instance.render(main_screen)
             pygame.display.flip()
             game_clock.tick(game_instance.fps)

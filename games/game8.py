@@ -377,7 +377,59 @@ class TetrisLikeGame:
         
         # Handle input
         if controller_input:
-            # Movement control (prevent too fast input)
+            # Initialize stick parameters if not exists
+            if not hasattr(self, 'stick_threshold'):
+                self.stick_threshold = 0.3  # Lower threshold for continuous movement
+                self.stick_speed_multiplier = 1.0
+                self.last_stick_direction = None
+                self.stick_input_delay = 0.15  # Separate delay for stick input
+
+            # Left stick input processing
+            stick_x = controller_input.get("left_stick_x", 0.0)
+            stick_y = controller_input.get("left_stick_y", 0.0)
+            
+            # Horizontal movement (continuous)
+            if abs(stick_x) > self.stick_threshold:
+                if current_time - self.last_input_time > 0.1:
+                    moved = False
+                    if stick_x < -self.stick_threshold:  # Left
+                        if self.move_left():
+                            moved = True
+                    elif stick_x > self.stick_threshold:  # Right
+                        if self.move_right():
+                            moved = True
+                    
+                    if moved:
+                        self.last_input_time = current_time
+                        if self.buzzer:
+                            self.buzzer.play_tone(frequency=400, duration=0.05)
+
+            # Vertical movement and rotation (single-trigger)
+            stick_direction = None
+            if abs(stick_y) > self.stick_threshold:
+                if stick_y > self.stick_threshold:
+                    stick_direction = "down"
+                elif stick_y < -self.stick_threshold:
+                    stick_direction = "up"
+
+            # Apply stick vertical movement (single-trigger with delay)
+            if stick_direction and stick_direction != self.last_stick_direction:
+                if current_time - getattr(self, 'last_stick_vertical_time', 0) > self.stick_input_delay:
+                    if stick_direction == "down":
+                        if self.move_down():
+                            self.score += 1  # Soft drop score
+                            if self.buzzer:
+                                self.buzzer.play_tone(frequency=400, duration=0.05)
+                    elif stick_direction == "up":
+                        if self.rotate():
+                            if self.buzzer:
+                                self.buzzer.play_tone(frequency=600, duration=0.1)
+                    self.last_stick_vertical_time = current_time
+                self.last_stick_direction = stick_direction
+            elif not stick_direction:
+                self.last_stick_direction = None
+
+            # D-pad movement control (preserve original logic, takes priority)
             if current_time - self.last_input_time > 0.1:
                 moved = False
                 
@@ -397,7 +449,7 @@ class TetrisLikeGame:
                     if self.buzzer:
                         self.buzzer.play_tone(frequency=400, duration=0.05)
             
-            # Rotation control
+            # Rotation control (D-pad takes priority over stick)
             if controller_input.get("up_pressed") and current_time - getattr(self, 'last_rotate_time', 0) > 0.2:
                 if self.rotate():
                     self.last_rotate_time = current_time

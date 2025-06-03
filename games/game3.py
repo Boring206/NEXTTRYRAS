@@ -425,12 +425,40 @@ class SpaceInvadersGame:
 
         # 輸入處理
         if controller_input:
+            # Initialize stick parameters if not exists
+            if not hasattr(self, 'stick_threshold'):
+                self.stick_threshold = 0.3  # Lower threshold for continuous movement
+                self.stick_speed_multiplier = 1.0  # Adjust stick sensitivity
+            
+            # Left stick input processing (continuous movement)
+            stick_x = controller_input.get("left_stick_x", 0.0)
+            stick_movement = False
+            
+            # Apply stick movement with scaling
+            if abs(stick_x) > self.stick_threshold:
+                # Scale movement based on stick deflection
+                movement_amount = self.player_speed * (abs(stick_x) * self.stick_speed_multiplier)
+                if stick_x < -self.stick_threshold:  # Left
+                    self.player_x = max(0, self.player_x - movement_amount)
+                    stick_movement = True
+                elif stick_x > self.stick_threshold:  # Right
+                    self.player_x = min(self.width - self.player_width, self.player_x + movement_amount)
+                    stick_movement = True
+            
+            # D-pad input (preserve original logic, takes priority)
+            d_pad_movement = False
             if controller_input.get("left_pressed"):
                 self.move_player("left")
+                d_pad_movement = True
             if controller_input.get("right_pressed"):
                 self.move_player("right")
+                d_pad_movement = True
+            
+            # Shooting input (both A button and stick are supported)
             if controller_input.get("a_pressed"):
                 self.shoot()
+            
+            # Pause/Start input
             if controller_input.get("start_pressed"):
                  if not hasattr(self, 'last_start_press_time') or time.time() - self.last_start_press_time > 0.5:
                     self.paused = not self.paused # 切換暫停狀態

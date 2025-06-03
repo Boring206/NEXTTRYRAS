@@ -281,19 +281,55 @@ class EnhancedSnakeGame:
 
         # Handle input
         if controller_input:
-            # Directional control (allow only one direction change per update cycle before move)
-            new_direction_request = None
-            if controller_input.get("up_pressed") and self.direction != (0, 1):
-                new_direction_request = (0, -1)
-            elif controller_input.get("down_pressed") and self.direction != (0, -1):
-                new_direction_request = (0, 1)
-            elif controller_input.get("left_pressed") and self.direction != (1, 0):
-                new_direction_request = (-1, 0)
-            elif controller_input.get("right_pressed") and self.direction != (-1, 0):
-                new_direction_request = (1, 0)
+            # Initialize input delay for left stick if not exists
+            if not hasattr(self, 'stick_input_delay'):
+                self.stick_input_delay = 0.2  # Stick input delay similar to D-pad
+                self.last_stick_input_time = 0
+                self.stick_threshold = 0.6  # Threshold for stick activation
+                self.last_stick_direction = None
             
-            if new_direction_request:
-                self.direction = new_direction_request
+            # Left stick input processing (single-trigger movement)
+            stick_x = controller_input.get("left_stick_x", 0.0)
+            stick_y = controller_input.get("left_stick_y", 0.0)
+            stick_direction_request = None
+            
+            # Determine stick direction with dead zone
+            if abs(stick_x) > self.stick_threshold or abs(stick_y) > self.stick_threshold:
+                if abs(stick_x) > abs(stick_y):  # Horizontal movement dominant
+                    if stick_x > self.stick_threshold and self.direction != (-1, 0):
+                        stick_direction_request = (1, 0)  # Right
+                    elif stick_x < -self.stick_threshold and self.direction != (1, 0):
+                        stick_direction_request = (-1, 0)  # Left
+                else:  # Vertical movement dominant
+                    if stick_y > self.stick_threshold and self.direction != (0, -1):
+                        stick_direction_request = (0, 1)  # Down
+                    elif stick_y < -self.stick_threshold and self.direction != (0, 1):
+                        stick_direction_request = (0, -1)  # Up
+            
+            # Apply stick input with delay (single-trigger)
+            if (stick_direction_request and 
+                stick_direction_request != self.last_stick_direction and
+                current_time - self.last_stick_input_time >= self.stick_input_delay):
+                self.direction = stick_direction_request
+                self.last_stick_input_time = current_time
+                self.last_stick_direction = stick_direction_request
+            elif not stick_direction_request:
+                self.last_stick_direction = None  # Reset when stick returns to center
+            
+            # D-pad directional control (preserve original logic)
+            d_pad_direction_request = None
+            if controller_input.get("up_pressed") and self.direction != (0, 1):
+                d_pad_direction_request = (0, -1)
+            elif controller_input.get("down_pressed") and self.direction != (0, -1):
+                d_pad_direction_request = (0, 1)
+            elif controller_input.get("left_pressed") and self.direction != (1, 0):
+                d_pad_direction_request = (-1, 0)
+            elif controller_input.get("right_pressed") and self.direction != (-1, 0):
+                d_pad_direction_request = (1, 0)
+            
+            # D-pad takes priority over stick for precise control
+            if d_pad_direction_request:
+                self.direction = d_pad_direction_request
 
             # Boost control (manual speed up)
             self.boosting = controller_input.get("a_pressed", False)

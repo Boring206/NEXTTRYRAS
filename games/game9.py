@@ -326,6 +326,12 @@ class ReactionTestGame:
         
         # Handle input
         if controller_input:
+            # Initialize left stick parameters if not exists
+            if not hasattr(self, 'stick_threshold'):
+                self.stick_threshold = 0.7  # Higher threshold for precise menu navigation
+                self.last_stick_direction = None
+                self.stick_input_delay = 0.3  # Longer delay for menu navigation
+
             # A button - Reaction button
             if controller_input.get("a_pressed"):
                 if self.state in ['waiting', 'signal']:
@@ -344,12 +350,40 @@ class ReactionTestGame:
                 elif self.state in ['instructions', 'result']:
                     self.state = 'menu'
             
-            # Arrow keys - Select mode
+            # Menu navigation with left stick (single-trigger)
             if self.state == 'menu':
+                stick_y = controller_input.get("left_stick_y", 0.0)
+                stick_direction = None
+                
+                if abs(stick_y) > self.stick_threshold:
+                    if stick_y > self.stick_threshold:
+                        stick_direction = "down"
+                    elif stick_y < -self.stick_threshold:
+                        stick_direction = "up"
+                
+                # Apply stick movement (single-trigger with delay)
+                if stick_direction and stick_direction != self.last_stick_direction:
+                    if current_time - getattr(self, 'last_stick_input_time', 0) > self.stick_input_delay:
+                        if stick_direction == "up":
+                            self.current_mode_index = (self.current_mode_index - 1) % len(self.test_modes)
+                        elif stick_direction == "down":
+                            self.current_mode_index = (self.current_mode_index + 1) % len(self.test_modes)
+                        self.last_stick_input_time = current_time
+                        if self.buzzer:
+                            self.buzzer.play_tone(frequency=400, duration=0.05)
+                    self.last_stick_direction = stick_direction
+                elif not stick_direction:
+                    self.last_stick_direction = None
+
+                # D-pad input (preserve original logic, takes priority)
                 if controller_input.get("up_pressed"):
                     self.current_mode_index = (self.current_mode_index - 1) % len(self.test_modes)
+                    if self.buzzer:
+                        self.buzzer.play_tone(frequency=400, duration=0.05)
                 elif controller_input.get("down_pressed"):
                     self.current_mode_index = (self.current_mode_index + 1) % len(self.test_modes)
+                    if self.buzzer:
+                        self.buzzer.play_tone(frequency=400, duration=0.05)
             
             # Pause control
             if controller_input.get("start_pressed"):

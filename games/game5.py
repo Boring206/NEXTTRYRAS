@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # game5_enhanced.py - Memory Match Game Implementation (Enhanced)
-
 import random
 import pygame
 import time
@@ -32,7 +31,7 @@ class MemoryMatchGame:
         self.GREEN = (0, 255, 0)
         self.BLUE = (0, 0, 255)
         self.YELLOW = (255, 255, 0)
-        self.PURPLE = (128, 0, 128) # Adjusted Purple for better visibility
+        self.PURPLE = (128, 0, 128)
         self.CYAN = (0, 255, 255)
         self.ORANGE = (255, 165, 0)
         self.PINK = (255, 192, 203)
@@ -41,7 +40,6 @@ class MemoryMatchGame:
         self.LIGHT_BLUE = (173, 216, 230)
         self.LIME_GREEN = (50, 205, 50)
         self.GOLD = (255, 215, 0)
-
 
         # Game settings (default to easy)
         self.grid_cols = 4
@@ -157,8 +155,8 @@ class MemoryMatchGame:
         bottom_hud_height = 100
         side_padding = 50
 
-        available_width = self.width - (2 * side_padding) - (self.grid_cols -1) * self.card_margin * 2
-        available_height = self.height - top_hud_height - bottom_hud_height - (self.grid_rows -1) * self.card_margin * 2
+        available_width = self.width - (2 * side_padding) - (self.grid_cols - 1) * self.card_margin * 2
+        available_height = self.height - top_hud_height - bottom_hud_height - (self.grid_rows - 1) * self.card_margin * 2
         
         self.card_width = available_width // self.grid_cols
         self.card_height = available_height // self.grid_rows
@@ -369,284 +367,223 @@ class MemoryMatchGame:
         # --- Game State Logic ---
         if self.game_state == self.MENU:
             if controller_input and current_time - self.last_input_time >= self.input_delay:
+                # Initialize left stick parameters if not exists
+                if not hasattr(self, 'stick_threshold'):
+                    self.stick_threshold = 0.7
+                    self.last_stick_direction = None
+
                 moved = False
+                
+                # Left stick input processing (single-trigger movement)
+                stick_y = controller_input.get("left_stick_y", 0.0)
+                stick_direction = None
+                
+                if abs(stick_y) > self.stick_threshold:
+                    if stick_y > self.stick_threshold:
+                        stick_direction = "down"
+                    elif stick_y < -self.stick_threshold:
+                        stick_direction = "up"
+                
+                # Apply stick movement (single-trigger with delay)
+                if stick_direction and stick_direction != self.last_stick_direction:
+                    if stick_direction == "up":
+                        self.menu_selected_option = (self.menu_selected_option - 1) % len(self.menu_options)
+                        moved = True
+                    elif stick_direction == "down":
+                        self.menu_selected_option = (self.menu_selected_option + 1) % len(self.menu_options)
+                        moved = True
+                    self.last_stick_direction = stick_direction
+                elif not stick_direction:
+                    self.last_stick_direction = None
+
+                # D-pad input (preserve original logic, takes priority)
                 if controller_input.get("up_pressed"):
                     self.menu_selected_option = (self.menu_selected_option - 1) % len(self.menu_options)
-                    self._play_sound(self.sound_select, frequency=400, duration=0.05)
                     moved = True
                 elif controller_input.get("down_pressed"):
                     self.menu_selected_option = (self.menu_selected_option + 1) % len(self.menu_options)
-                    self._play_sound(self.sound_select, frequency=400, duration=0.05)
                     moved = True
-                elif controller_input.get("a_pressed") or controller_input.get("start_pressed"): # 'a' or 'enter'
-                    action_result = self._process_menu_selection()
-                    if action_result.get("action") == "quit":
-                        return {"game_over": True, "quit_game": True} # Special signal
+
+                if controller_input.get("a_pressed"):
+                    result = self._process_menu_selection()
+                    if result == "quit":
+                        return {"quit": True}
                     moved = True
+
                 if moved:
                     self.last_input_time = current_time
-            return {"game_over": False}
-
+                    if self.buzzer:
+                        self.buzzer.play_tone(frequency=400, duration=0.05)
 
         elif self.game_state == self.SHOWING_CARDS:
             if current_time - self.show_all_start_time >= self.show_all_time_duration:
+                for card in self.cards:
+                    card['revealed'] = False
                 self.game_state = self.PLAYING
-                self.start_time = time.time() # Actual game start time
-            return {"game_over": False}
-
-
-        elif self.game_state == self.GAME_OVER:
-            if controller_input and controller_input.get("start_pressed") and \
-               current_time - self.last_input_time >= self.input_delay:
-                self.game_state = self.MENU # Go back to menu
-                self.last_input_time = current_time
-            return {"game_over": True, "score": self.score} # game_over_flag is true
-
-        elif self.game_state == self.PAUSED:
-            if controller_input and controller_input.get("start_pressed") and \
-               current_time - self.last_input_time >= self.input_delay:
-                self.paused_flag = False
-                self.game_state = self.PLAYING
-                self.last_input_time = current_time
-                # Adjust start_time if pausing should stop the timer
-                self.start_time += (time.time() - self._pause_time_start) # Add paused duration back
-            return {"game_over": self.game_over_flag}
-
 
         elif self.game_state == self.PLAYING:
-            # Update card flip animations
-            for card in self.cards:
-                if card['flipping']:
-                    progress = (current_time - card['flip_start_time']) / self.flip_animation_duration
-                    card['flip_progress'] = min(1, progress)
-                    if progress >= 0.5 and not card['revealed']: # Mid-point of animation
-                        card['revealed'] = True # Now show the color
-                    if progress >= 1:
-                        card['flipping'] = False
-                        card['flip_progress'] = 1 # Ensure it's fully revealed graphically
-
-            self.update_particles(delta_time)
-            if self.match_effect_timer > 0:
-                self.match_effect_timer -= delta_time
-
-            # Handle flipping back non-matched cards
-            if self.flip_back_active:
-                if current_time - self.flip_back_timer_start > 0.8: # Slightly shorter delay
-                    for card_to_hide in self.revealed_cards: # revealed_cards still holds the two non-matching cards
-                        if not card_to_hide['matched']: # Should always be true here
-                            card_to_hide['revealed'] = False
-                            card_to_hide['flipping'] = True # Start flip back animation
-                            card_to_hide['flip_start_time'] = time.time()
-                            card_to_hide['flip_progress'] = 0
-                    self.revealed_cards = [] # Now clear them
-                    self.flip_back_active = False
-            
-            # Process keyboard input for game play
             if controller_input and current_time - self.last_input_time >= self.input_delay:
-                moved = False
-                prev_cursor_row, prev_cursor_col = self.cursor_row, self.cursor_col
+                # Initialize left stick parameters if not exists
+                if not hasattr(self, 'stick_threshold'):
+                    self.stick_threshold = 0.7
+                    self.last_stick_direction = None
 
-                if controller_input.get("up_pressed"):
-                    self.cursor_row = max(0, self.cursor_row - 1)
-                    moved = True
-                elif controller_input.get("down_pressed"):
-                    self.cursor_row = min(self.grid_rows - 1, self.cursor_row + 1)
-                    moved = True
-                elif controller_input.get("left_pressed"):
-                    self.cursor_col = max(0, self.cursor_col - 1)
-                    moved = True
-                elif controller_input.get("right_pressed"):
-                    self.cursor_col = min(self.grid_cols - 1, self.cursor_col + 1)
-                    moved = True
+                moved_cursor = False
+                
+                # Left stick input processing (single-trigger movement)
+                stick_x = controller_input.get("left_stick_x", 0.0)
+                stick_y = controller_input.get("left_stick_y", 0.0)
+                stick_direction = None
+                
+                if abs(stick_x) > self.stick_threshold or abs(stick_y) > self.stick_threshold:
+                    if abs(stick_x) > abs(stick_y):
+                        if stick_x > self.stick_threshold:
+                            stick_direction = "right"
+                        elif stick_x < -self.stick_threshold:
+                            stick_direction = "left"
+                    else:
+                        if stick_y > self.stick_threshold:
+                            stick_direction = "down"
+                        elif stick_y < -self.stick_threshold:
+                            stick_direction = "up"
+                
+                # Apply stick movement (single-trigger with delay)
+                if stick_direction and stick_direction != self.last_stick_direction:
+                    if stick_direction == "up" and self.cursor_row > 0:
+                        self.cursor_row -= 1
+                        moved_cursor = True
+                    elif stick_direction == "down" and self.cursor_row < self.grid_rows - 1:
+                        self.cursor_row += 1
+                        moved_cursor = True
+                    elif stick_direction == "left" and self.cursor_col > 0:
+                        self.cursor_col -= 1
+                        moved_cursor = True
+                    elif stick_direction == "right" and self.cursor_col < self.grid_cols - 1:
+                        self.cursor_col += 1
+                        moved_cursor = True
+                    self.last_stick_direction = stick_direction
+                elif not stick_direction:
+                    self.last_stick_direction = None
+
+                # D-pad input (preserve original logic, takes priority)
+                if controller_input.get("up_pressed") and self.cursor_row > 0:
+                    self.cursor_row -= 1
+                    moved_cursor = True
+                elif controller_input.get("down_pressed") and self.cursor_row < self.grid_rows - 1:
+                    self.cursor_row += 1
+                    moved_cursor = True
+                elif controller_input.get("left_pressed") and self.cursor_col > 0:
+                    self.cursor_col -= 1
+                    moved_cursor = True
+                elif controller_input.get("right_pressed") and self.cursor_col < self.grid_cols - 1:
+                    self.cursor_col += 1
+                    moved_cursor = True
                 elif controller_input.get("a_pressed"):
-                    if not self.flip_back_active: # Don't allow flip if cards are about to flip back
-                         self.attempt_flip_card(self.cursor_row, self.cursor_col)
-                    moved = True # Counts as an action
-                elif controller_input.get("start_pressed"):
-                    self.paused_flag = True
-                    self.game_state = self.PAUSED
-                    self._pause_time_start = time.time() # Record when pause starts
-                    moved = True
+                    self.attempt_flip_card(self.cursor_row, self.cursor_col)
+                    moved_cursor = True
 
-                if moved:
+                if moved_cursor:
                     self.last_input_time = current_time
-                    if (self.cursor_row != prev_cursor_row or self.cursor_col != prev_cursor_col) and \
-                       not controller_input.get("a_pressed"): # Play sound only for cursor move
-                        self._play_sound(self.sound_select, frequency=300, duration=0.05)
+                    if self.buzzer:
+                        self.buzzer.play_tone(frequency=250, duration=0.05)
 
+            if self.flip_back_active and current_time - self.flip_back_timer_start >= 1.0:
+                self.check_match()
 
-            # Check for match if two cards are revealed and not flipping back
-            if len(self.revealed_cards) == 2 and not self.flip_back_active:
-                # Ensure both cards have finished their primary flip animation
-                card1, card2 = self.revealed_cards
-                if not card1['flipping'] and not card2['flipping']:
-                    self.check_match()
-            
-            return {"game_over": self.game_over_flag, "score": self.score}
+        elif self.game_state == self.GAME_OVER:
+            if controller_input and controller_input.get("a_pressed"):
+                self.game_state = self.MENU
 
-        return {"game_over": self.game_over_flag}
-
+        return {"game_over": self.game_over_flag, "score": self.score}
 
     def render(self, screen):
         screen.fill(self.BLACK)
-        current_time = time.time()
 
         if self.game_state == self.MENU:
             self.draw_menu(screen)
-            return
-
-        # Draw title
-        title_text = self.font_large.render("Memory Match", True, self.WHITE)
-        screen.blit(title_text, (self.width // 2 - title_text.get_width() // 2, 20))
-
-        # Draw cards
-        is_showing_all = (self.game_state == self.SHOWING_CARDS)
-
-        for card in self.cards:
-            rect = self.get_card_rect(card)
-            card_center_x, card_center_y = rect.centerx, rect.centery
-
-            # Card flipping animation
-            if card['flipping']:
-                progress = card['flip_progress'] # Already calculated in update
-                # Phase 1: Shrinking (0 to 0.5 progress) -> show back
-                # Phase 2: Expanding (0.5 to 1 progress) -> show front (color)
+        elif self.game_state in [self.SHOWING_CARDS, self.PLAYING]:
+            self.draw_hud(screen, self.game_state == self.SHOWING_CARDS, time.time())
+            
+            # Draw cards
+            for card in self.cards:
+                card_rect = self.get_card_rect(card)
                 
-                if progress < 0.5: # Shrinking, show back
-                    current_width = self.card_width * (1 - (progress * 2))
-                    display_color = self.DARK_GRAY
-                    border_color = self.GRAY
-                else: # Expanding, show front (color)
-                    current_width = self.card_width * ((progress - 0.5) * 2)
-                    display_color = card['color']
-                    border_color = self.WHITE
-                
-                current_height = self.card_height # Height doesn't change in this simple animation
-                
-                animated_rect = pygame.Rect(
-                    card_center_x - current_width / 2,
-                    rect.y,
-                    current_width,
-                    current_height
-                )
-                pygame.draw.rect(screen, display_color, animated_rect)
-                pygame.draw.rect(screen, border_color, animated_rect, 3)
-
-            else: # Not flipping, normal draw
-                show_content = (is_showing_all or card['revealed'] or card['matched'])
-                if show_content:
-                    pygame.draw.rect(screen, card['color'], rect)
-                    pygame.draw.rect(screen, self.WHITE, rect, 3)
+                if card['matched']:
+                    pygame.draw.rect(screen, self.DARK_GRAY, card_rect)
+                elif card['revealed'] or self.game_state == self.SHOWING_CARDS:
+                    pygame.draw.rect(screen, card['color'], card_rect)
                 else:
-                    pygame.draw.rect(screen, self.DARK_GRAY, rect)
-                    pygame.draw.rect(screen, self.GRAY, rect, 3)
+                    pygame.draw.rect(screen, self.GRAY, card_rect)
+                
+                pygame.draw.rect(screen, self.WHITE, card_rect, 2)
+            
+            # Draw cursor
+            if self.game_state == self.PLAYING:
+                cursor_card = self.get_card_at(self.cursor_row, self.cursor_col)
+                if cursor_card:
+                    cursor_rect = self.get_card_rect(cursor_card)
+                    pygame.draw.rect(screen, self.YELLOW, cursor_rect, 4)
 
-            # Match success visual effect (glow)
-            if card['matched'] and self.match_effect_timer > 0:
-                alpha = int(max(0, min(1, self.match_effect_timer / 1.0)) * 100) # Fades out
-                overlay = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
-                overlay.fill((255, 255, 100, alpha)) # Yellowish glow
-                screen.blit(overlay, rect.topleft)
+            self.draw_particles(screen)
 
-            # Cursor
-            if self.game_state == self.PLAYING and \
-               not is_showing_all and \
-               card['row'] == self.cursor_row and card['col'] == self.cursor_col:
-                pygame.draw.rect(screen, self.YELLOW, rect, 5) # Thicker cursor
-
-        # Draw particle effects
-        self.draw_particles(screen)
-
-        # Draw game info HUD
-        self.draw_hud(screen, is_showing_all, current_time)
-
-        # Overlays for Pause/Game Over
-        if self.game_state == self.GAME_OVER: # Uses game_over_flag
+        elif self.game_state == self.GAME_OVER:
             self.draw_game_over_screen(screen)
-        elif self.game_state == self.PAUSED: # Uses paused_flag
-            self.draw_pause_screen(screen)
-
 
     def draw_particles(self, screen):
         for particle in self.particles:
             if particle['life'] > 0:
                 alpha = int(particle['life'] * 255)
-                size = max(1, int(particle['size'] * (particle['life']**0.5))) # Size shrinks less linearly
+                size = max(2, int(6 * particle['life']))
                 
-                # Create a surface for each particle to handle per-pixel alpha correctly
                 particle_surf = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
-                pygame.draw.circle(particle_surf, (*particle['color'], alpha), (size, size), size)
-                screen.blit(particle_surf, (particle['x'] - size, particle['y'] - size))
+                color_with_alpha = (*particle['color'], alpha)
+                pygame.draw.circle(particle_surf, color_with_alpha, (size, size), size)
+                screen.blit(particle_surf, (int(particle['x'] - size), int(particle['y'] - size)))
 
     def draw_hud(self, screen, is_showing_all, current_time):
-        info_y = self.height - 60 # Adjusted Y for HUD
-        
-        score_text = self.font_small.render(f"Score: {self.score}", True, self.WHITE)
-        screen.blit(score_text, (50, info_y))
+        score_text = self.font_medium.render(f"Score: {self.score}", True, self.WHITE)
+        screen.blit(score_text, (10, 10))
 
-        moves_text = self.font_small.render(f"Moves: {self.moves}", True, self.WHITE)
-        screen.blit(moves_text, (self.width // 2 - moves_text.get_width()//2 - 100, info_y))
+        moves_text = self.font_medium.render(f"Moves: {self.moves}", True, self.WHITE)
+        screen.blit(moves_text, (10, 50))
 
-        pairs_text = self.font_small.render(f"Pairs: {self.matches_found}/{self.total_pairs}", True, self.WHITE)
-        screen.blit(pairs_text, (self.width // 2 + 50, info_y))
-
-        if self.game_state != self.GAME_OVER and self.game_state != self.SHOWING_CARDS and self.game_state != self.MENU:
-            elapsed = int(current_time - self.start_time) if self.start_time > 0 else 0
-            time_text_val = self.font_small.render(f"Time: {elapsed}s", True, self.WHITE)
-            screen.blit(time_text_val, (self.width - time_text_val.get_width() - 50, info_y))
+        matches_text = self.font_medium.render(f"Matches: {self.matches_found}/{self.total_pairs}", True, self.WHITE)
+        screen.blit(matches_text, (self.width - 200, 10))
 
         if is_showing_all:
-            countdown = int(self.show_all_time_duration - (current_time - self.show_all_start_time))
-            if countdown > 0:
-                countdown_text_render = self.font_large.render(f"Remember: {countdown}", True, self.YELLOW)
-                screen.blit(countdown_text_render, (self.width // 2 - countdown_text_render.get_width() // 2, self.height // 2 - 50))
+            remaining_time = max(0, self.show_all_time_duration - (current_time - self.show_all_start_time))
+            time_text = self.font_medium.render(f"Memorize: {remaining_time:.1f}s", True, self.YELLOW)
+            screen.blit(time_text, (self.width // 2 - 100, 10))
 
     def draw_menu(self, screen):
-        screen.fill(self.DARK_GRAY) # Menu background
-        title_text = self.font_large.render("Memory Match", True, self.GOLD)
-        screen.blit(title_text, (self.width // 2 - title_text.get_width() // 2, self.height // 4))
+        title_text = self.font_large.render("Memory Match", True, self.WHITE)
+        screen.blit(title_text, (self.width // 2 - title_text.get_width() // 2, 100))
 
-        menu_item_height = 60
-        base_y = self.height // 2 - (len(self.menu_options) * menu_item_height) // 2 + 50
-
-        for i, option_text in enumerate(self.menu_options):
+        for i, option in enumerate(self.menu_options):
             color = self.YELLOW if i == self.menu_selected_option else self.WHITE
-            text_render = self.font_medium.render(option_text, True, color)
-            text_rect = text_render.get_rect(center=(self.width // 2, base_y + i * menu_item_height))
-            screen.blit(text_render, text_rect)
-        
-        instructions_font = pygame.font.Font(None, 28)
-        inst1 = instructions_font.render("Use UP/DOWN keys to navigate, ENTER or A to select.", True, self.GRAY)
-        inst2 = instructions_font.render("Or click to select.", True, self.GRAY)
-        screen.blit(inst1, (self.width//2 - inst1.get_width()//2, base_y + len(self.menu_options) * menu_item_height + 20))
-        screen.blit(inst2, (self.width//2 - inst2.get_width()//2, base_y + len(self.menu_options) * menu_item_height + 20 + inst1.get_height() + 5))
+            option_text = self.font_medium.render(option, True, color)
+            y_pos = 250 + i * 60
+            screen.blit(option_text, (self.width // 2 - option_text.get_width() // 2, y_pos))
 
+        instruction_text = self.font_small.render("Use arrow keys to navigate, A to select", True, self.GRAY)
+        screen.blit(instruction_text, (self.width // 2 - instruction_text.get_width() // 2, self.height - 100))
 
     def draw_game_over_screen(self, screen):
         overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 180)) # Darker overlay
+        overlay.fill((0, 0, 0, 180))
         screen.blit(overlay, (0, 0))
 
         title_text = self.font_large.render("Congratulations!", True, self.GREEN)
-        screen.blit(title_text, (self.width // 2 - title_text.get_width() // 2, self.height // 2 - 150))
+        screen.blit(title_text, (self.width // 2 - title_text.get_width() // 2, self.height // 2 - 100))
 
-        elapsed_time = int(time.time() - self.start_time) if self.start_time > 0 else 0
-        avg_moves = f"{self.moves / self.total_pairs:.1f}" if self.total_pairs > 0 else "N/A"
-        stats = [
-            f"Final Score: {self.score}",
-            f"Time: {elapsed_time} seconds",
-            f"Moves: {self.moves}",
-            f"Avg Moves/Pair: {avg_moves}"
-        ]
+        score_text = self.font_medium.render(f"Final Score: {self.score}", True, self.WHITE)
+        screen.blit(score_text, (self.width // 2 - score_text.get_width() // 2, self.height // 2 - 50))
 
-        for i, stat in enumerate(stats):
-            stat_text = self.font_small.render(stat, True, self.WHITE) # Smaller font for stats
-            screen.blit(stat_text, (self.width // 2 - stat_text.get_width() // 2,
-                                     self.height // 2 - 60 + i * 35))
+        moves_text = self.font_medium.render(f"Total Moves: {self.moves}", True, self.WHITE)
+        screen.blit(moves_text, (self.width // 2 - moves_text.get_width() // 2, self.height // 2))
 
-        restart_text = self.font_medium.render("Press Start to Return to Menu", True, self.YELLOW)
-        screen.blit(restart_text, (self.width // 2 - restart_text.get_width() // 2,
-                                     self.height // 2 + 80))
+        continue_text = self.font_small.render("Press A to return to menu", True, self.WHITE)
+        screen.blit(continue_text, (self.width // 2 - continue_text.get_width() // 2, self.height // 2 + 100))
 
     def draw_pause_screen(self, screen):
         overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
@@ -654,62 +591,60 @@ class MemoryMatchGame:
         screen.blit(overlay, (0, 0))
 
         pause_text = self.font_large.render("Paused", True, self.YELLOW)
-        screen.blit(pause_text, (self.width // 2 - pause_text.get_width() // 2, self.height // 2 - 50))
-
-        continue_text = self.font_medium.render("Press Start to Continue", True, self.WHITE)
-        screen.blit(continue_text, (self.width // 2 - continue_text.get_width() // 2, self.height // 2 + 20))
+        screen.blit(pause_text, (self.width // 2 - pause_text.get_width() // 2, self.height // 2))
 
     def cleanup(self):
-        if self._internal_buzzer_active:
-            pygame.mixer.quit()
-        print("Game cleanup called.")
-
+        pass
 
 # Test code
 if __name__ == "__main__":
     try:
         pygame.init()
-        pygame.font.init() # Ensure font module is initialized
+        screen_width = 800
+        screen_height = 600
+        screen = pygame.display.set_mode((screen_width, screen_height))
+        pygame.display.set_caption("Memory Match Game Test")
 
-        SCREEN_WIDTH = 800
-        SCREEN_HEIGHT = 600
-        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-        pygame.display.set_caption("Memory Match Game Enhanced")
+        class MockBuzzer:
+            def play_tone(self, frequency=None, duration=None):
+                print(f"Buzzer: freq={frequency}, dur={duration}")
 
-        game = MemoryMatchGame(SCREEN_WIDTH, SCREEN_HEIGHT)
-        clock = pygame.time.Clock()
+        game = MemoryMatchGame(screen_width, screen_height, buzzer=MockBuzzer())
+
+        key_mapping = {
+            pygame.K_UP: "up_pressed",
+            pygame.K_DOWN: "down_pressed",
+            pygame.K_LEFT: "left_pressed",
+            pygame.K_RIGHT: "right_pressed",
+            pygame.K_a: "a_pressed",
+            pygame.K_RETURN: "start_pressed"
+        }
 
         running = True
+        clock = pygame.time.Clock()
+
         while running:
-            events = pygame.event.get()
-            for event in events:
+            controller_input = {key: False for key in key_mapping.values()}
+
+            for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
-            
+
             keys = pygame.key.get_pressed()
-            controller_input = {
-                "up_pressed": keys[pygame.K_UP],
-                "down_pressed": keys[pygame.K_DOWN],
-                "left_pressed": keys[pygame.K_LEFT],
-                "right_pressed": keys[pygame.K_RIGHT],
-                "a_pressed": keys[pygame.K_a] or keys[pygame.K_SPACE], # A or Space to select/flip
-                "start_pressed": keys[pygame.K_RETURN] # Enter key
-            }
+            for key, input_name in key_mapping.items():
+                if keys[key]:
+                    controller_input[input_name] = True
 
-            game_status = game.update(controller_input, events) # Pass events for mouse clicks
-
-            if game_status.get("quit_game"): # Check for quit signal from menu
+            result = game.update(controller_input)
+            if result and result.get("quit"):
                 running = False
 
             game.render(screen)
             pygame.display.flip()
-            clock.tick(60) # Target 60 FPS
+            clock.tick(60)
 
-        game.cleanup()
         pygame.quit()
 
     except Exception as e:
         print(f"Game execution error: {e}")
-        import traceback
-        traceback.print_exc()
         pygame.quit()

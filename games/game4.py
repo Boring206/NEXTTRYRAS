@@ -257,10 +257,52 @@ class TicTacToeGame:
         # 處理玩家輸入 (如果不是電腦的回合，或是雙人模式)
         if not (self.vs_computer and self.current_player == 2):
             if current_time - self.last_input_time >= self.input_delay:
+                # Initialize left stick parameters if not exists
+                if not hasattr(self, 'stick_threshold'):
+                    self.stick_threshold = 0.7  # Higher threshold for precise cursor movement
+                    self.last_stick_direction = None
+                
                 moved_cursor = False
                 action_taken = False
 
                 if controller_input:
+                    # Left stick input processing (single-trigger movement)
+                    stick_x = controller_input.get("left_stick_x", 0.0)
+                    stick_y = controller_input.get("left_stick_y", 0.0)
+                    stick_direction = None
+                    
+                    # Determine stick direction with dead zone
+                    if abs(stick_x) > self.stick_threshold or abs(stick_y) > self.stick_threshold:
+                        if abs(stick_x) > abs(stick_y):  # Horizontal movement dominant
+                            if stick_x > self.stick_threshold:
+                                stick_direction = "right"
+                            elif stick_x < -self.stick_threshold:
+                                stick_direction = "left"
+                        else:  # Vertical movement dominant
+                            if stick_y > self.stick_threshold:
+                                stick_direction = "down"  # Stick Y is usually inverted
+                            elif stick_y < -self.stick_threshold:
+                                stick_direction = "up"
+                    
+                    # Apply stick movement (single-trigger with delay)
+                    if stick_direction and stick_direction != self.last_stick_direction:
+                        if stick_direction == "up" and self.cursor_row > 0:
+                            self.cursor_row -= 1
+                            moved_cursor = True
+                        elif stick_direction == "down" and self.cursor_row < 2:
+                            self.cursor_row += 1
+                            moved_cursor = True
+                        elif stick_direction == "left" and self.cursor_col > 0:
+                            self.cursor_col -= 1
+                            moved_cursor = True
+                        elif stick_direction == "right" and self.cursor_col < 2:
+                            self.cursor_col += 1
+                            moved_cursor = True
+                        self.last_stick_direction = stick_direction
+                    elif not stick_direction:
+                        self.last_stick_direction = None  # Reset when stick returns to center
+                    
+                    # D-pad input (preserve original logic, takes priority over stick)
                     if controller_input.get("up_pressed") and self.cursor_row > 0:
                         self.cursor_row -= 1
                         moved_cursor = True
@@ -280,12 +322,10 @@ class TicTacToeGame:
                     if controller_input.get("y_pressed"): # 切換遊戲模式
                         self.vs_computer = not self.vs_computer
                         self.reset_game() # 切換模式時重置遊戲，但保留總分
-                        # 保留總分，所以這裡的分數更新邏輯要小心
-                        # self.score_x, self.score_o, self.score_draw 不應在此重置
                         action_taken = True
                         if self.buzzer: self.buzzer.play_tone(frequency=500, duration=0.2)
 
-                    if controller_input.get("start_pressed"): # 開始/重置 (在遊戲中按通常是暫停，但井字遊戲直接重置)
+                    if controller_input.get("start_pressed"): # 開始/重置
                         self.reset_game()
                         action_taken = True
                         if self.buzzer: self.buzzer.play_tone(frequency=300, duration=0.3)
