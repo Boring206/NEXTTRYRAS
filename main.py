@@ -38,6 +38,7 @@ from games.game6 import SimpleMazeGame
 from games.game7 import WhacAMoleGame
 from games.game8 import TetrisLikeGame
 from games.game9 import ReactionTestGame
+from games.game10 import VampireSurvivorsGame
 
 # 全域設定
 VERSION = "2.0.0"
@@ -145,7 +146,8 @@ class EnhancedGameConsole:
             {"id": 6, "name": "簡易迷宮", "description": "搖桿控制方向。找到出口。時間越短越好。", "game_class": SimpleMazeGame, "difficulty": "Medium"},
             {"id": 7, "name": "打地鼠", "description": "搖桿移動槌子。按A鈕敲擊。反應要快！", "game_class": WhacAMoleGame, "difficulty": "Hard"},
             {"id": 8, "name": "俄羅斯方塊", "description": "搖桿移動旋轉。消除滿行得分。速度會加快。", "game_class": TetrisLikeGame, "difficulty": "Hard"},
-            {"id": 9, "name": "反應力測試", "description": "出現信號時按A鈕。測試反應速度極限。", "game_class": ReactionTestGame, "difficulty": "Medium"}
+            {"id": 9, "name": "反應力測試", "description": "出現信號時按A鈕。測試反應速度極限。", "game_class": ReactionTestGame, "difficulty": "Medium"},
+            {"id": 10, "name": "吸血鬼倖存者", "description": "搖桿移動角色。自動攻擊敵人。升級武器生存！", "game_class": VampireSurvivorsGame, "difficulty": "Hard"}
         ]
         self.state = GameState.STARTUP; self.previous_state = None; self.current_selection = 0
         self.current_game = None; self.running = True # 主循環控制旗標
