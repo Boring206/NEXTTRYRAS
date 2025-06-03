@@ -282,12 +282,12 @@ class SPIScreenManager:
 
     def display_game_over(self, score, best_score=None):
         if not self.is_available(): return
-        elements = [{"text": "遊戲結束！", "font": self.font_large, "color": self.RED}]
-        elements.append({"text": f"分數: {score}", "font": self.font_medium, "color": self.WHITE})
+        elements = [{"text": "Game Over！", "font": self.font_large, "color": self.RED}]
+        elements.append({"text": f"Score: {score}", "font": self.font_medium, "color": self.WHITE})
         if best_score is not None:
-            elements.append({"text": f"最高分: {best_score}", "font": self.font_medium, "color": self.YELLOW})
+            elements.append({"text": f"Best_Score: {best_score}", "font": self.font_medium, "color": self.YELLOW})
         elements.append({"text": " ", "font": self.font_small, "color": self.WHITE})
-        elements.append({"text": "3秒後返回選單", "font": self.font_small, "color": self.CYAN})
+        elements.append({"text": "Return to menu after 3 seconds", "font": self.font_small, "color": self.CYAN})
         
         current_y_pos = self.height // 4
         line_h_ratio_over = 1.4
