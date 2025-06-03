@@ -330,7 +330,7 @@ class EnhancedGameConsole:
             if shutdown_requested_by_signal:
                 logging.info("偵測到關機請求信號，正在停止主循環...")
                 self.running = False # 確保再次設定以防萬一
-                break 
+                break
 
             try:
                 self._handle_power_button_events() # 處理遊戲內按鈕事件
@@ -340,7 +340,7 @@ class EnhancedGameConsole:
                 self.clock.tick(self.config.config["display"]["fps"])
             except Exception as e:
                 logging.error(f"主循環錯誤: {e}\n{traceback.format_exc()}"); self.state = GameState.ERROR
-        
+
         logging.info("主循環已結束，執行清理...")
         self.cleanup() # 主循環結束後執行清理
 
@@ -462,6 +462,16 @@ class EnhancedGameConsole:
     def _handle_game(self):
         if self.current_game:
             ctrl_in = self.controller.get_input() if self.controller else {}
+
+            # --- MODIFICATION START: Handle Xbox BACK button ---
+            if ctrl_in and ctrl_in.get("back_pressed"):
+                if self._can_process_input(): # Use existing input cooldown
+                    logging.info("偵測到 Xbox 控制器 BACK 鍵按下，返回主選單。")
+                    self._handle_return_to_menu() # Call existing return to menu method
+                    self.last_input_time = time.time() # Update last input time
+                    return # Return immediately, skip further game logic for this frame
+            # --- MODIFICATION END ---
+
             status = self.current_game.update(ctrl_in)
             if status.get("game_over", False):
                 self.state = GameState.GAME_OVER; self.game_over_data = status
@@ -578,7 +588,7 @@ class EnhancedGameConsole:
         self.end_current_game()
         try: self.config.save_config(); self._save_session_stats()
         except Exception as e: logging.error(f"儲存數據失敗: {e}")
-        
+
         # 清理順序調整，先清理依賴 Pygame 的，最後關閉 Pygame
         if self.buzzer: self.buzzer.cleanup()
         if self.power_button: self.power_button.cleanup() # 清理 GameControlButton
@@ -586,7 +596,7 @@ class EnhancedGameConsole:
         if self.keypad: self.keypad.cleanup()
         if self.controller: self.controller.cleanup()
         if self.traffic_light: self.traffic_light.cleanup()
-        
+
         if pygame.get_init(): pygame.quit(); logging.info("Pygame 已關閉")
         # GPIO.cleanup() 會在主程式的 finally 區塊執行
         logging.info("遊戲機系統清理完成 (GPIO 清理將在主腳本結束時進行)")
@@ -611,10 +621,10 @@ class EnhancedGameConsole:
 if __name__ == "__main__":
     # 設定日誌 (如果 EnhancedGameConsole 未設定 StreamHandler，可以在此處補上)
     # EnhancedGameConsole._setup_logging() 已經包含了 StreamHandler
-    
+
     # 設定 SIGUSR1 信號處理器
     signal.signal(signal.SIGUSR1, signal_handler_usr1)
-    
+
     power_button_process = None
     game_console_instance = None # 初始化為 None
 
@@ -622,7 +632,7 @@ if __name__ == "__main__":
         main_pid = str(os.getpid())
         # 確保 power_button.py 在與 main.py 相同的目錄下
         power_button_script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "power_button.py")
-        
+
         if os.path.exists(power_button_script_path):
             logging.info(f"嘗試啟動 power_button.py (主程序 PID: {main_pid})...")
             # 使用 sudo 執行 power_button.py 以便其有權限執行 shutdown
@@ -646,7 +656,7 @@ if __name__ == "__main__":
         logging.error(f"主程式發生未預期錯誤: {e}\n{traceback.format_exc()}")
     finally:
         logging.info("主程式 finally 區塊開始執行清理...")
-        
+
         # 確保在 game_console_instance 存在且其 run 方法已結束後才調用 cleanup
         # 如果 run() 是因為異常退出，可能需要手動調用 cleanup
         # 但正常的流程是 run() 結束後會自行調用 cleanup()
@@ -677,7 +687,7 @@ if __name__ == "__main__":
                     logging.error(f"使用 SIGKILL 終止 power_button.py 失敗: {e_kill}")
             except Exception as e_term:
                 logging.error(f"終止 power_button.py 時發生其他錯誤: {e_term}")
-        
+
         # 最終的 GPIO 清理
         # 確保在所有 GPIO 操作都完成後執行
         # EnhancedGameConsole.cleanup() 內部不應再調用 GPIO.cleanup()
@@ -685,5 +695,5 @@ if __name__ == "__main__":
         if GPIO.getmode() is not None: # 檢查 GPIO 是否曾被設定模式
             logging.info("執行最終的 GPIO.cleanup()...")
             GPIO.cleanup()
-        
+
         logging.info("主程式已結束。")

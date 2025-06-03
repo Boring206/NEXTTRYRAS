@@ -1,302 +1,712 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# gamepad_input.py - 遊戲控制器輸入處理
+# game1.py - Enhanced Snake Game Implementation
 
+import random
 import pygame
 import time
-import logging
-import sys # 用於在測試時清除行
+import math
+from pygame.locals import *
 
-logger = logging.getLogger(__name__)
+class EnhancedSnakeGame:
+    """Enhanced Snake Game Class"""
 
-class XboxController:
-    # ==============================================================================
-    # << 請根據您的手把測試結果修改以下按鈕和軸的索引 >>
-    # 不同的手把，甚至同一手把在不同模式下，這些對應都可能不同。
-    # 執行 `python3 gamepad_input.py` 來找出您手把的正確對應。
-    # ==============================================================================
+    def __init__(self, width=800, height=600, buzzer=None):
+        self.width = width
+        self.height = height
+        self.buzzer = buzzer
 
-    # 按鈕 (Buttons) - 範例值，基於常見的 Xbox 控制器
-    BUTTON_A = 0      # 通常是南邊的按鈕 (例如 Xbox 的 A, PS 的 X)
-    BUTTON_B = 1      # 通常是東邊的按鈕 (例如 Xbox 的 B, PS 的 O)
-    BUTTON_X = 2      # 通常是西邊的按鈕 (例如 Xbox 的 X, PS 的 □)
-    BUTTON_Y = 3      # 通常是北邊的按鈕 (例如 Xbox 的 Y, PS 的 Δ)
-    BUTTON_LB = 4     # 左上肩鍵 (Left Bumper)
-    BUTTON_RB = 5     # 右上肩鍵 (Right Bumper)
-    BUTTON_BACK = 6   # "Back", "Select", "View" 或類似按鈕
-    BUTTON_START = 7  # "Start", "Menu", "Options" 或類似按鈕
-    BUTTON_LS = 8     # 左搖桿按下 (Left Stick pressed)
-    BUTTON_RS = 9     # 右搖桿按下 (Right Stick pressed)
-    # 如果您的手把有更多按鈕，可以繼續添加，例如 BUTTON_GUIDE = 10 等
+        # Game element sizes
+        self.block_size = 20
+        self.grid_width = self.width // self.block_size
+        self.grid_height = self.height // self.block_size
 
-    # 軸 (Axes) - 範例值
-    AXIS_LEFT_STICK_X = 0  # 左搖桿 X (-1.0 左, 1.0 右)
-    AXIS_LEFT_STICK_Y = 1  # 左搖桿 Y (-1.0 上, 1.0 下) - Pygame 通常上方為負
-    AXIS_RIGHT_STICK_X = 3 # 右搖桿 X
-    AXIS_RIGHT_STICK_Y = 4 # 右搖桿 Y
-    AXIS_LT = 2           # 左扳機 (Left Trigger, Pygame 中通常是 -1.0 未按 到 1.0 全按)
-    AXIS_RT = 5           # 右扳機 (Right Trigger)
-    # 某些手把可能將 LT/RT 合併為一個軸，或者有不同的軸數量和順序
+        # Color definitions
+        self.BLACK = (0, 0, 0)
+        self.WHITE = (255, 255, 255)
+        self.GREEN = (0, 255, 0)
+        self.RED = (255, 0, 0)
+        self.BLUE = (0, 0, 255)
+        self.YELLOW = (255, 255, 0)
+        self.PURPLE = (255, 0, 255)
+        self.CYAN = (0, 255, 255)
+        self.ORANGE = (255, 165, 0)
 
-    # 方向鍵 (Hat - 通常只有一個 hat，索引為 0)
-    HAT_INDEX = 0 # Pygame 中第一個方向鍵(hat)的索引
+        # Special food colors
+        self.GOLDEN_FOOD = (255, 215, 0)
+        self.SPEED_FOOD = (255, 100, 100)
+        self.MULTI_FOOD = (100, 255, 100)
+        self.BONUS_FOOD = (255, 20, 147) # Deep Pink
 
-    # 搖桿死區，避免微小移動被偵測
-    STICK_DEADZONE = 0.25
-    TRIGGER_THRESHOLD = 0.5 # 扳機被視為「按下」的閾值 (標準化後的 0-1 值)
+        # Game speed related
+        self.clock = pygame.time.Clock()
+        self.base_speed = 8.0 # Use float for more precise speed adjustments
+        self.speed_boost_value = 15.0 # Renamed from speed_boost to avoid conflict with powerup key
+        self.current_speed = self.base_speed
 
-    def __init__(self, joystick_id=0):
-        self.joystick_id = joystick_id
-        self.controller = None
-        self.is_connected = False
-        self.last_input_time = 0
-        self.input_cooldown = 0.03 # 輸入處理的最小間隔，防止過於頻繁
-
-        self.button_states = {} 
-        self.prev_button_states = {}
-        self.dpad_state = (0,0)
-        self.prev_dpad_state = (0,0)
-
-        if not pygame.joystick.get_init():
-            logger.warning("Pygame joystick 模組未初始化。請在主程式中調用 pygame.joystick.init()")
-
-        if pygame.joystick.get_count() > joystick_id:
-            try:
-                self.controller = pygame.joystick.Joystick(joystick_id)
-                self.controller.init()
-                self.is_connected = True
-                logger.info(f"控制器 '{self.controller.get_name()}' (ID: {joystick_id}) 連接成功。")
-                logger.info(f"  按鈕數量: {self.controller.get_numbuttons()}")
-                logger.info(f"  軸數量: {self.controller.get_numaxes()}")
-                logger.info(f"  方向鍵(Hats)數量: {self.controller.get_numhats()}")
-
-                for i in range(self.controller.get_numbuttons()):
-                    self.button_states[i] = False
-                    self.prev_button_states[i] = False
-            except pygame.error as e:
-                logger.error(f"初始化控制器 ID {joystick_id} 失敗: {e}")
-                self.controller = None; self.is_connected = False
-        else:
-            logger.warning(f"未找到 ID 為 {joystick_id} 的控制器。")
-
-    def check_connection(self): # Pygame 通常透過事件處理插拔
-        return self.is_connected
-
-    def get_input(self):
-        if not self.is_connected or not self.controller:
-            return None
-
-        pygame.event.pump() 
-
-        self.prev_button_states = self.button_states.copy()
-        for i in range(self.controller.get_numbuttons()):
-            self.button_states[i] = self.controller.get_button(i)
-        
-        self.prev_dpad_state = self.dpad_state
-        if self.controller.get_numhats() > 0:
-            self.dpad_state = self.controller.get_hat(self.HAT_INDEX)
-        else:
-            self.dpad_state = (0,0)
-
-        # 處理軸
-        num_axes = self.controller.get_numaxes()
-        left_stick_x = self.controller.get_axis(self.AXIS_LEFT_STICK_X) if num_axes > self.AXIS_LEFT_STICK_X else 0.0
-        left_stick_y = self.controller.get_axis(self.AXIS_LEFT_STICK_Y) if num_axes > self.AXIS_LEFT_STICK_Y else 0.0
-        right_stick_x = self.controller.get_axis(self.AXIS_RIGHT_STICK_X) if num_axes > self.AXIS_RIGHT_STICK_X else 0.0
-        right_stick_y = self.controller.get_axis(self.AXIS_RIGHT_STICK_Y) if num_axes > self.AXIS_RIGHT_STICK_Y else 0.0
-        
-        # 扳機值 (Pygame 原始值通常是 -1.0 到 1.0)
-        raw_lt_value = self.controller.get_axis(self.AXIS_LT) if num_axes > self.AXIS_LT else -1.0
-        raw_rt_value = self.controller.get_axis(self.AXIS_RT) if num_axes > self.AXIS_RT else -1.0
-        
-        # 標準化扳機值到 0.0 (未按) 到 1.0 (全按)
-        lt_value_normalized = (raw_lt_value + 1.0) / 2.0
-        rt_value_normalized = (raw_rt_value + 1.0) / 2.0
-
-        # 應用死區
-        if abs(left_stick_x) < self.STICK_DEADZONE: left_stick_x = 0.0
-        if abs(left_stick_y) < self.STICK_DEADZONE: left_stick_y = 0.0
-        if abs(right_stick_x) < self.STICK_DEADZONE: right_stick_x = 0.0
-        if abs(right_stick_y) < self.STICK_DEADZONE: right_stick_y = 0.0
-
-        input_map = {
-            "left_stick_x": left_stick_x, "left_stick_y": left_stick_y,
-            "right_stick_x": right_stick_x, "right_stick_y": right_stick_y,
-            "lt_pressed": lt_value_normalized > self.TRIGGER_THRESHOLD,
-            "rt_pressed": rt_value_normalized > self.TRIGGER_THRESHOLD,
-            "lt_value": lt_value_normalized, "rt_value": rt_value_normalized,
-
-            "a_down": self.button_states.get(self.BUTTON_A, False),
-            "b_down": self.button_states.get(self.BUTTON_B, False),
-            "x_down": self.button_states.get(self.BUTTON_X, False),
-            "y_down": self.button_states.get(self.BUTTON_Y, False),
-            "lb_down": self.button_states.get(self.BUTTON_LB, False),
-            "rb_down": self.button_states.get(self.BUTTON_RB, False),
-            "back_down": self.button_states.get(self.BUTTON_BACK, False),
-            "start_down": self.button_states.get(self.BUTTON_START, False),
-            "ls_down": self.button_states.get(self.BUTTON_LS, False),
-            "rs_down": self.button_states.get(self.BUTTON_RS, False),
-
-            "a_pressed": self.button_states.get(self.BUTTON_A, False) and not self.prev_button_states.get(self.BUTTON_A, False),
-            "b_pressed": self.button_states.get(self.BUTTON_B, False) and not self.prev_button_states.get(self.BUTTON_B, False),
-            "x_pressed": self.button_states.get(self.BUTTON_X, False) and not self.prev_button_states.get(self.BUTTON_X, False),
-            "y_pressed": self.button_states.get(self.BUTTON_Y, False) and not self.prev_button_states.get(self.BUTTON_Y, False),
-            "lb_pressed": self.button_states.get(self.BUTTON_LB, False) and not self.prev_button_states.get(self.BUTTON_LB, False),
-            "rb_pressed": self.button_states.get(self.BUTTON_RB, False) and not self.prev_button_states.get(self.BUTTON_RB, False),
-            "back_pressed": self.button_states.get(self.BUTTON_BACK, False) and not self.prev_button_states.get(self.BUTTON_BACK, False),
-            "start_pressed": self.button_states.get(self.BUTTON_START, False) and not self.prev_button_states.get(self.BUTTON_START, False),
-            "ls_pressed": self.button_states.get(self.BUTTON_LS, False) and not self.prev_button_states.get(self.BUTTON_LS, False),
-            "rs_pressed": self.button_states.get(self.BUTTON_RS, False) and not self.prev_button_states.get(self.BUTTON_RS, False),
-
-            "dpad_up": self.dpad_state[1] == 1, "dpad_down": self.dpad_state[1] == -1,
-            "dpad_left": self.dpad_state[0] == -1, "dpad_right": self.dpad_state[0] == 1,
-            "up_pressed": self.dpad_state[1] == 1 and self.prev_dpad_state[1] != 1,
-            "down_pressed": self.dpad_state[1] == -1 and self.prev_dpad_state[1] != -1,
-            "left_pressed": self.dpad_state[0] == -1 and self.prev_dpad_state[0] != -1,
-            "right_pressed": self.dpad_state[0] == 1 and self.prev_dpad_state[0] != 1,
-            "dpad_raw": self.dpad_state
+        # Power-up system
+        self.powerups = {
+            'invincible': {'active': False, 'timer': 0, 'duration': 5.0},
+            'speed_boost': {'active': False, 'timer': 0, 'duration': 3.0},
+            'score_multiplier': {'active': False, 'timer': 0, 'duration': 10.0},
+            'wall_phase': {'active': False, 'timer': 0, 'duration': 8.0}
         }
-        return input_map
 
-    def rumble(self, low_frequency_rumble, high_frequency_rumble, duration_ms):
-        if self.is_connected and self.controller and hasattr(self.controller, 'rumble'):
-            try:
-                self.controller.rumble(float(low_frequency_rumble), float(high_frequency_rumble), int(duration_ms))
-                logger.debug(f"控制器震動: Low={low_frequency_rumble}, High={high_frequency_rumble}, Duration={duration_ms}ms")
-                return True
-            except Exception as e: 
-                logger.warning(f"控制器震動失敗: {e}")
-        return False
+        # Particle effect system
+        self.particles = []
 
-    def stop_rumble(self):
-        if self.is_connected and self.controller and hasattr(self.controller, 'rumble'):
-            try: 
-                self.controller.rumble(0, 0, 0)
-                logger.debug("已停止控制器震動。")
-            except Exception: 
-                pass
+        # Sound enhancement / Combo system
+        self.combo_count = 0
+        self.max_combo_achieved = 0 # Added to track max combo
+        self.last_eat_time = 0
+        self.combo_window = 2.0  # Combo window time
+
+        # Initialize game state
+        self.reset_game()
+
+    def reset_game(self):
+        """Reset game state"""
+        # Snake's initial position
+        self.snake = [(self.grid_width // 2, self.grid_height // 2)]
+        self.direction = (1, 0) # Moving right initially
+
+        # Food system
+        self.foods = []
+        self.generate_food() # Generate initial normal food
+
+        # Special food timer
+        self.special_food_timer = time.time() # Initialize timer correctly
+        self.special_food_interval = 10.0  # 10 seconds to generate a special food
+
+        # Game state
+        self.score = 0
+        self.level = 1
+        self.game_over = False
+        self.paused = False
+        self.boosting = False # Manual speed boost
+
+        # Enhanced features
+        self.score_multiplier_value = 1 # Renamed from score_multiplier to avoid conflict with powerup key
+        self.total_eaten = 0
+        self.combo_count = 0
+        self.max_combo_achieved = 0 # Reset max combo
+
+        # Reset power-ups
+        for powerup_data in self.powerups.values(): # Use a different variable name
+            powerup_data['active'] = False
+            powerup_data['timer'] = 0
+        
+        self.current_speed = self.base_speed # Reset speed
+
+        # Clear particles
+        self.particles.clear()
+
+        # Movement control
+        self.last_move_time = time.time()
+        self.move_interval = 1.0 / self.base_speed
+        self._last_update_time = time.time() # Initialize for delta_time calculation
+
+    def generate_food(self, food_type='normal'):
+        """Generate food"""
+        while True:
+            pos = (random.randint(0, self.grid_width - 1),
+                   random.randint(0, self.grid_height - 1))
+
+            # Ensure not on snake body or other food
+            if pos not in self.snake and not any(food_item['pos'] == pos for food_item in self.foods):
+                food = {
+                    'pos': pos,
+                    'type': food_type,
+                    'spawn_time': time.time(),
+                    'lifetime': 15.0 if food_type != 'normal' else float('inf')
+                }
+
+                # Special food attributes
+                if food_type == 'golden':
+                    food['points'] = 5
+                    food['growth'] = 2
+                elif food_type == 'speed': # This activates 'speed_boost' powerup
+                    food['points'] = 3
+                    food['powerup'] = 'speed_boost'
+                elif food_type == 'multi': # This activates 'score_multiplier' powerup
+                    food['points'] = 2
+                    food['powerup'] = 'score_multiplier'
+                elif food_type == 'bonus': # This activates 'invincible' powerup
+                    food['points'] = 10
+                    food['powerup'] = 'invincible'
+                elif food_type == 'phase': # This activates 'wall_phase' powerup
+                    food['points'] = 4
+                    food['powerup'] = 'wall_phase'
+                else:  # normal
+                    food['points'] = 1
+                    food['growth'] = 1
+
+                self.foods.append(food)
+                break
+
+    def update_special_foods(self):
+        """Update special food generation"""
+        current_time = time.time()
+
+        # Generate special food
+        if current_time - self.special_food_timer >= self.special_food_interval:
+            special_types = ['golden', 'speed', 'multi', 'bonus', 'phase']
+            # Adjust spawn probability based on level (example weights)
+            weights = [3, 2, 2, 1, 1]  # Golden food has higher chance
+            if self.level > 5: # Example: higher chance for rarer items at higher levels
+                weights = [2, 2, 2, 2, 2] 
+            
+            # Ensure there's a limited number of special foods on screen
+            if sum(1 for f in self.foods if f['type'] != 'normal') < 3: # Max 3 special foods
+                special_type = random.choices(special_types, weights=weights, k=1)[0]
+                self.generate_food(special_type)
+            self.special_food_timer = current_time
+
+            # Shorten special food spawn interval as level increases
+            self.special_food_interval = max(5.0, 10.0 - self.level * 0.5)
+
+        # Remove expired special foods
+        self.foods = [food for food in self.foods
+                      if food['type'] == 'normal' or
+                      (current_time - food['spawn_time']) < food['lifetime']]
+
+    def update_powerups(self, delta_time):
+        """Update power-up effects"""
+        for name, powerup_data in self.powerups.items():
+            if powerup_data['active']:
+                powerup_data['timer'] -= delta_time
+                if powerup_data['timer'] <= 0:
+                    powerup_data['active'] = False
+                    # Power-up end effects
+                    if name == 'score_multiplier':
+                        self.score_multiplier_value = 1
+                    elif name == 'speed_boost':
+                        # Only reset to base_speed if not manually boosting
+                        if not self.boosting:
+                             self.current_speed = self.base_speed
+                        # If boosting, update() will set to self.speed_boost_value
+                    elif name == 'invincible':
+                        pass # No specific end effect needed beyond timer
+                    elif name == 'wall_phase':
+                        pass # No specific end effect needed
+                    
+                    # Optional: Sound for power-up expiring
+                    if self.buzzer:
+                        self.buzzer.play_tone(frequency=300, duration=0.2)
+
+
+    def activate_powerup(self, powerup_type):
+        """Activate power-up effect"""
+        if powerup_type in self.powerups:
+            powerup_data = self.powerups[powerup_type]
+            powerup_data['active'] = True
+            powerup_data['timer'] = powerup_data['duration']
+
+            # Immediate effects
+            if powerup_type == 'score_multiplier':
+                self.score_multiplier_value = 3
+            elif powerup_type == 'speed_boost':
+                # If already boosting manually, power-up might give an extra kick or just refresh timer
+                self.current_speed = self.base_speed * 1.5 
+            elif powerup_type == 'invincible':
+                pass # Effect handled in collision checks
+            elif powerup_type == 'wall_phase':
+                pass # Effect handled in boundary checks
+
+            # Play power-up sound
+            if self.buzzer:
+                self.buzzer.play_tone(frequency=800, duration=0.3)
+
+    def create_particles(self, pos, color, count=5, effect_type='eat'):
+        """Create particle effects"""
+        for _ in range(count):
+            if effect_type == 'eat':
+                vx_range = (-50, 50)
+                vy_range = (-50, 50)
+                life_mult = 1.0
+                gravity = 100
+            elif effect_type == 'boost': # Example for a different particle effect
+                vx_range = (-20, 20)
+                vy_range = (-100, -50) # Upwards
+                life_mult = 0.5
+                gravity = 50
+                
+            particle = {
+                'x': pos[0] * self.block_size + self.block_size // 2,
+                'y': pos[1] * self.block_size + self.block_size // 2,
+                'vx': random.uniform(*vx_range),
+                'vy': random.uniform(*vy_range),
+                'life': 1.0 * life_mult,
+                'color': color,
+                'size': random.uniform(2, 6)
+            }
+            self.particles.append(particle)
+
+    def update_particles(self, delta_time):
+        """Update particle effects"""
+        active_particles = []
+        for particle in self.particles:
+            particle['x'] += particle['vx'] * delta_time
+            particle['y'] += particle['vy'] * delta_time
+            particle['life'] -= delta_time * 2 # Life drains twice as fast
+            particle['vy'] += 100 * delta_time  # Gravity effect
+
+            if particle['life'] > 0:
+                active_particles.append(particle)
+        self.particles = active_particles
+
+
+    def update(self, controller_input=None):
+        """Update game state"""
+        current_time = time.time()
+        delta_time = current_time - self._last_update_time
+        self._last_update_time = current_time
+
+        # Handle pause/game over input first
+        if self.game_over or self.paused:
+            if controller_input and controller_input.get("start_pressed"):
+                # Debounce start press for restart/resume
+                if not hasattr(self, 'start_handled_time') or current_time - self.start_handled_time > 0.5:
+                    if self.game_over:
+                        self.reset_game()
+                    else: # Paused
+                        self.paused = False
+                    self.start_handled_time = current_time # Mark as handled
+            return {"game_over": self.game_over, "score": self.score, "paused": self.paused}
+
+        # Update systems that run every frame regardless of movement
+        self.update_powerups(delta_time)
+        self.update_particles(delta_time)
+        self.update_special_foods() # This also uses time, so frequent updates are good
+
+        # Handle input
+        if controller_input:
+            # Directional control (allow only one direction change per update cycle before move)
+            new_direction_request = None
+            if controller_input.get("up_pressed") and self.direction != (0, 1):
+                new_direction_request = (0, -1)
+            elif controller_input.get("down_pressed") and self.direction != (0, -1):
+                new_direction_request = (0, 1)
+            elif controller_input.get("left_pressed") and self.direction != (1, 0):
+                new_direction_request = (-1, 0)
+            elif controller_input.get("right_pressed") and self.direction != (-1, 0):
+                new_direction_request = (1, 0)
+            
+            if new_direction_request:
+                self.direction = new_direction_request
+
+            # Boost control (manual speed up)
+            self.boosting = controller_input.get("a_pressed", False)
+
+            # Pause control
+            if controller_input.get("start_pressed"):
+                 if not hasattr(self, 'start_handled_time') or current_time - self.start_handled_time > 0.5:
+                    self.paused = not self.paused
+                    self.start_handled_time = current_time
+                    if self.buzzer: self.buzzer.play_tone(frequency=500, duration=0.1)
+                    # Return immediately after pausing to prevent further game logic this frame
+                    return {"game_over": self.game_over, "score": self.score, "paused": self.paused}
+        
+        # Update movement speed based on powerups and manual boost
+        if self.powerups['speed_boost']['active']:
+            # Speed boost powerup overrides manual boosting if it's faster or has a different effect
+             move_speed = self.base_speed * 1.5 # Assuming powerup speed is fixed multiplier
+        elif self.boosting:
+            move_speed = self.speed_boost_value
+        else:
+            move_speed = self.current_speed # current_speed is base_speed or level-adjusted speed
+        
+        self.move_interval = 1.0 / max(move_speed, 1.0) # Ensure speed is at least 1
+
+        # Check if it's time to move
+        if current_time - self.last_move_time < self.move_interval:
+            return {"game_over": self.game_over, "score": self.score, "paused": self.paused} # Added paused state
+
+        self.last_move_time = current_time
+
+        # Move snake
+        head_x, head_y = self.snake[0]
+        new_head = (head_x + self.direction[0], head_y + self.direction[1])
+
+        # Boundary handling
+        if self.powerups['wall_phase']['active']:
+            # Wall phasing mode
+            new_head = (new_head[0] % self.grid_width, new_head[1] % self.grid_height)
+        else:
+            # Normal boundary check
+            if (new_head[0] < 0 or new_head[0] >= self.grid_width or
+                    new_head[1] < 0 or new_head[1] >= self.grid_height):
+                self.game_over = True
+                if self.buzzer:
+                    self.buzzer.play_tone(frequency=200, duration=1.0) # Game over sound
+                return {"game_over": True, "score": self.score, "paused": self.paused}
+
+        # Check collision with self
+        # Invincible powerup allows passing through self
+        if not self.powerups['invincible']['active'] and new_head in self.snake[1:]: # Don't check head against itself
+            self.game_over = True
+            if self.buzzer:
+                self.buzzer.play_tone(frequency=200, duration=1.0) # Game over sound
+            return {"game_over": True, "score": self.score, "paused": self.paused}
+
+        # Add new head
+        self.snake.insert(0, new_head)
+
+        # Check if food is eaten
+        eaten_food_item = None
+        for food_item in self.foods[:]: # Iterate over a copy for safe removal
+            if new_head == food_item['pos']:
+                eaten_food_item = food_item
+                self.foods.remove(food_item)
+                break
+        
+        if eaten_food_item:
+            # Handle combo
+            if current_time - self.last_eat_time < self.combo_window:
+                self.combo_count += 1
+            else:
+                self.combo_count = 1 # Reset combo if window passed
+            self.last_eat_time = current_time
+            self.max_combo_achieved = max(self.max_combo_achieved, self.combo_count)
+
+            # Calculate score
+            base_points = eaten_food_item['points']
+            combo_bonus_multiplier = 1 + (self.combo_count -1) * 0.1 # e.g. 10% bonus per combo hit after first
+            total_points = int(base_points * combo_bonus_multiplier * self.score_multiplier_value)
+            self.score += total_points
+
+            # Snake growth
+            growth_amount = eaten_food_item.get('growth', 1)
+            # No need to subtract 1 from growth_amount because the head is added, and tail is popped if no food
+            # So, for growth N, we need to add N-1 segments if tail isn't popped.
+            # Since tail will be popped if no food, and NOT popped if food is eaten,
+            # simply adding growth_amount -1 tail copies is correct IF we don't pop.
+            # The current logic: add head, then if no food, pop tail. If food, don't pop tail.
+            # So, if growth is 1, effectively snake grows by 1. If growth is 2, snake should grow by 2.
+            # This means if growth is X, we need to add X-1 dummy segments to the tail before the pop logic.
+            # However, the current code adds X-1 segments AND doesn't pop. This is correct.
+
+            for _ in range(growth_amount -1): # Already grew by 1 (head added, tail not popped)
+                 if self.snake: # Should always be true
+                    self.snake.append(self.snake[-1]) # Append a copy of the last segment
+
+
+            # Activate power-up if any
+            if 'powerup' in eaten_food_item:
+                self.activate_powerup(eaten_food_item['powerup'])
+
+            # Create particle effects
+            food_color_map = {
+                'normal': self.RED, 'golden': self.GOLDEN_FOOD, 'speed': self.SPEED_FOOD,
+                'multi': self.MULTI_FOOD, 'bonus': self.BONUS_FOOD, 'phase': self.PURPLE
+            }
+            self.create_particles(eaten_food_item['pos'],
+                                  food_color_map.get(eaten_food_item['type'], self.RED),
+                                  count=10 if eaten_food_item['type'] != 'normal' else 5)
+
+            # Play sound effect
+            if self.buzzer:
+                if eaten_food_item['type'] == 'normal':
+                    freq = min(600 + self.combo_count * 50, 1500) # Adjusted frequency
+                    self.buzzer.play_tone(frequency=freq, duration=0.15)
+                else:
+                    # Special food sound
+                    self.buzzer.play_tone(frequency=1000, duration=0.1)
+                    pygame.time.wait(50) # Short pause for distinct sound
+                    self.buzzer.play_tone(frequency=1200, duration=0.1)
+            
+            # Generate new normal food if a normal food was eaten or if no normal food exists
+            if eaten_food_item['type'] == 'normal' or not any(f['type'] == 'normal' for f in self.foods):
+                self.generate_food()
+
+            # Level up check
+            self.total_eaten += 1
+            if self.total_eaten % 10 == 0: # Level up every 10 foods
+                self.level += 1
+                self.base_speed += 0.5 # Slower speed increase
+                if not self.powerups['speed_boost']['active'] and not self.boosting:
+                    self.current_speed = self.base_speed
+                if self.buzzer:
+                    self.buzzer.play_tone(frequency=1500, duration=0.5) # Level up sound
+        else:
+            # No food eaten, remove tail segment
+            if self.snake: self.snake.pop()
+
+        # Ensure at least one normal food on the map if others were special and expired
+        if not any(f['type'] == 'normal' for f in self.foods):
+            self.generate_food()
+            
+        return {"game_over": self.game_over, "score": self.score, "paused": self.paused}
+
+    def render(self, screen):
+        """Render the game screen"""
+        # Clear screen
+        screen.fill(self.BLACK)
+
+        # Draw food
+        for food_item in self.foods:
+            food_color_map = {
+                'normal': self.RED, 'golden': self.GOLDEN_FOOD, 'speed': self.SPEED_FOOD,
+                'multi': self.MULTI_FOOD, 'bonus': self.BONUS_FOOD, 'phase': self.PURPLE
+            }
+            color = food_color_map.get(food_item['type'], self.RED)
+
+            food_rect = pygame.Rect(
+                food_item['pos'][0] * self.block_size,
+                food_item['pos'][1] * self.block_size,
+                self.block_size,
+                self.block_size
+            )
+
+            # Special food flashing effect
+            if food_item['type'] != 'normal':
+                current_time = time.time()
+                remaining_time = food_item['lifetime'] - (current_time - food_item['spawn_time'])
+                if remaining_time < 3.0:  # Flash in the last 3 seconds
+                    if int(current_time * 6) % 2:  # 3Hz flash (6 changes per sec)
+                        # Make color brighter for flash
+                        color = tuple(min(255, c + 60) for c in color)
+            
+            pygame.draw.rect(screen, color, food_rect)
+            # Special food marker (e.g., a small white circle)
+            if food_item['type'] != 'normal':
+                pygame.draw.circle(screen, self.WHITE, food_rect.center, self.block_size // 6)
+
+
+        # Draw snake
+        for i, segment in enumerate(self.snake):
+            # Base color: blue for head, green for body
+            seg_color = self.BLUE if i == 0 else self.GREEN 
+            
+            # Invincible power-up flash effect
+            if self.powerups['invincible']['active']:
+                if int(time.time() * 10) % 2: # Faster flash for invincibility
+                     seg_color = self.YELLOW # Flash to yellow, for example
+            
+            # Wall phase power-up visual (e.g., semi-transparent or different color)
+            if self.powerups['wall_phase']['active'] and i == 0: # Only head maybe
+                # Example: make head slightly transparent or a different hue
+                 # For simplicity, let's make it lighter
+                seg_color = tuple(min(255, c + 50) for c in seg_color)
+
+
+            segment_rect = pygame.Rect(
+                segment[0] * self.block_size,
+                segment[1] * self.block_size,
+                self.block_size,
+                self.block_size
+            )
+            pygame.draw.rect(screen, seg_color, segment_rect)
+            
+            # Snake head decoration (e.g., eyes)
+            if i == 0:
+                eye_radius = self.block_size // 8
+                offset_x1, offset_y1 = 0,0
+                offset_x2, offset_y2 = 0,0
+
+                if self.direction == (1,0): # Right
+                    offset_x1, offset_y1 = self.block_size // 2, -self.block_size // 4
+                    offset_x2, offset_y2 = self.block_size // 2, self.block_size // 4
+                elif self.direction == (-1,0): # Left
+                    offset_x1, offset_y1 = -self.block_size // 2, -self.block_size // 4
+                    offset_x2, offset_y2 = -self.block_size // 2, self.block_size // 4
+                elif self.direction == (0,1): # Down
+                    offset_x1, offset_y1 = -self.block_size // 4, self.block_size // 2
+                    offset_x2, offset_y2 = self.block_size // 4, self.block_size // 2
+                elif self.direction == (0,-1): # Up
+                    offset_x1, offset_y1 = -self.block_size // 4, -self.block_size // 2
+                    offset_x2, offset_y2 = self.block_size // 4, -self.block_size // 2
+                
+                eye1_pos = (segment_rect.centerx + offset_x1, segment_rect.centery + offset_y1)
+                eye2_pos = (segment_rect.centerx + offset_x2, segment_rect.centery + offset_y2)
+                pygame.draw.circle(screen, self.WHITE, eye1_pos, eye_radius)
+                pygame.draw.circle(screen, self.WHITE, eye2_pos, eye_radius)
+
+
+        # Draw particles
+        for particle in self.particles:
+            # Particle life affects alpha and size
+            alpha = max(0, min(255, int(particle['life'] * 255)))
+            size = max(1, int(particle['size'] * particle['life'])) # Size shrinks with life
+            
+            if alpha > 0 and size > 0:
+                # Create a surface for each particle to handle alpha correctly
+                particle_surf = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
+                # Draw circle on this temp surface
+                pygame.draw.circle(particle_surf, (*particle['color'][:3], alpha), (size, size), size)
+                # Blit the temp surface onto the main screen
+                screen.blit(particle_surf, (int(particle['x'] - size), int(particle['y'] - size)))
+
+
+        # Draw UI
+        font = pygame.font.Font(None, 36) # Default font, size 36
+
+        # Basic info
+        score_text_surf = font.render(f"Score: {self.score}", True, self.WHITE)
+        screen.blit(score_text_surf, (10, 10))
+
+        level_text_surf = font.render(f"Level: {self.level}", True, self.WHITE)
+        screen.blit(level_text_surf, (10, 50))
+
+        current_speed_display = self.current_speed
+        if self.powerups['speed_boost']['active']:
+            current_speed_display = self.base_speed * 1.5
+        elif self.boosting:
+            current_speed_display = self.speed_boost_value
+
+        speed_text_surf = font.render(f"Speed: {current_speed_display:.1f}", True, self.WHITE)
+        screen.blit(speed_text_surf, (10, 90))
+
+        # Combo display
+        if self.combo_count > 1:
+            combo_text_surf = font.render(f"Combo x{self.combo_count}!", True, self.YELLOW)
+            # Position combo text dynamically or at a fixed nice spot
+            screen.blit(combo_text_surf, (self.width - combo_text_surf.get_width() - 10, 10))
+
+        # Power-up status display
+        y_offset = 130
+        font_small = pygame.font.Font(None, 28) # Slightly smaller font for status
+        
+        powerup_display_names = {
+            'invincible': 'Invincible',
+            'speed_boost': 'Speed Boost',
+            'score_multiplier': 'Score x3',
+            'wall_phase': 'Wall Phase'
+        }
+
+        active_powerup_count = 0
+        for name, powerup_data in self.powerups.items():
+            if powerup_data['active']:
+                active_powerup_count +=1
+                remaining_time = powerup_data['timer']
+                text_surf = font_small.render(f"{powerup_display_names[name]}: {remaining_time:.1f}s", True, self.CYAN)
+                screen.blit(text_surf, (10, y_offset))
+                y_offset += 30
+        
+        if active_powerup_count == 0 and self.level > 1: # Show a tip if no powerups active after level 1
+            tip_text = font_small.render("Eat special food for power-ups!", True, self.GRAY)
+            screen.blit(tip_text, (10, y_offset))
+
+
+        # Game Over / Paused screen
+        if self.game_over:
+            self.draw_game_over_screen(screen) # Renamed for clarity
+        elif self.paused:
+            self.draw_pause_screen(screen) # Renamed for clarity
+
+    def draw_game_over_screen(self, screen): # Renamed
+        """Draw the Game Over screen"""
+        overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA) # For transparency
+        overlay.fill((0, 0, 0, 180))  # Semi-transparent black
+        screen.blit(overlay, (0, 0))
+
+        font_large = pygame.font.Font(None, 72)
+        font_medium = pygame.font.Font(None, 48)
+        font_small = pygame.font.Font(None, 36)
+
+        # Title
+        title_surf = font_large.render("Game Over", True, self.RED)
+        screen.blit(title_surf, (self.width // 2 - title_surf.get_width() // 2, self.height // 2 - 150))
+
+        # Statistics
+        stats_info = [
+            f"Final Score: {self.score}",
+            f"Reached Level: {self.level}",
+            f"Total Food Eaten: {self.total_eaten}",
+            f"Max Combo: {self.max_combo_achieved}" # Using the new variable
+        ]
+
+        for i, stat_str in enumerate(stats_info):
+            stat_surf = font_small.render(stat_str, True, self.WHITE)
+            screen.blit(stat_surf, (self.width // 2 - stat_surf.get_width() // 2,
+                                   self.height // 2 - 60 + i * 40)) # Adjusted y_pos
+
+        restart_surf = font_medium.render("Press Start to Restart", True, self.WHITE)
+        screen.blit(restart_surf, (self.width // 2 - restart_surf.get_width() // 2,
+                                 self.height // 2 + 100)) # Adjusted y_pos
+
+    def draw_pause_screen(self, screen): # Renamed
+        """Draw the Pause screen"""
+        overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        screen.blit(overlay, (0, 0))
+
+        font_large = pygame.font.Font(None, 80) # Larger "Paused" text
+        pause_surf = font_large.render("Paused", True, self.YELLOW)
+        screen.blit(pause_surf, (self.width // 2 - pause_surf.get_width() // 2, self.height // 2 - 60))
+
+        font_medium = pygame.font.Font(None, 40)
+        continue_surf = font_medium.render("Press Start to Continue", True, self.WHITE)
+        screen.blit(continue_surf, (self.width // 2 - continue_surf.get_width() // 2,
+                                   self.height // 2 + 20))
 
     def cleanup(self):
-        if self.controller:
-            self.stop_rumble()
-            self.controller.quit()
-            self.controller = None
-        self.is_connected = False
-        logger.info(f"控制器 (ID: {self.joystick_id}) 資源已清理。")
+        """Clean up game resources (if any)"""
+        # For Pygame, this is usually handled by pygame.quit()
+        pass
 
+# For backward compatibility if other scripts import SnakeGame
+SnakeGame = EnhancedSnakeGame
 
-if __name__ == '__main__':
-    pygame.init()
-    pygame.joystick.init()
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-    logger.info("測試 XboxController...")
-
-    if pygame.joystick.get_count() == 0:
-        logger.error("未偵測到任何遊戲控制器。請連接控制器後再試。")
-        pygame.quit()
-        exit()
-
-    controller = XboxController(joystick_id=0)
-
-    if not controller.is_connected:
-        logger.error("控制器連接失敗，測試終止。")
-        pygame.quit()
-        exit()
-
-    print(f"已連接控制器: {controller.controller.get_name()}")
-    print("按任意按鈕或移動搖桿進行測試。按 Y 鍵測試震動。(Ctrl+C 結束)")
-    print("注意觀察終端輸出的事件詳情以獲取按鈕/軸的索引。")
-
-    running = True
+# If this script is run directly, for testing
+if __name__ == "__main__":
     try:
-        while running:
+        # Initialize Pygame
+        pygame.init()
+
+        # Set up window
+        screen_width_main = 800
+        screen_height_main = 600
+        main_screen = pygame.display.set_mode((screen_width_main, screen_height_main))
+        pygame.display.set_caption("Enhanced Snake Game Test")
+
+        # Create game instance
+        game_instance = SnakeGame(screen_width_main, screen_height_main)
+
+        # Map keyboard keys to simulated controller inputs
+        key_action_map = {
+            pygame.K_UP: "up_pressed",
+            pygame.K_DOWN: "down_pressed",
+            pygame.K_LEFT: "left_pressed",
+            pygame.K_RIGHT: "right_pressed",
+            pygame.K_SPACE: "a_pressed",  # Use Space for 'A' button (boost)
+            pygame.K_RETURN: "start_pressed" # Enter for 'Start' button (pause/restart)
+        }
+        
+        game_running = True
+        game_clock = pygame.time.Clock() # Use a local clock for the main loop
+
+        while game_running:
+            # Event handling
+            current_inputs = {action: False for action in key_action_map.values()}
+
             for event in pygame.event.get():
-                if event.type == pygame.QUIT: 
-                    running = False
-                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE: 
-                    running = False
-                
-                # 打印詳細的 Pygame 搖桿事件
-                if event.type == pygame.JOYAXISMOTION:
-                    print(f"  Pygame Event: JOYAXISMOTION - Joystick ID: {event.instance_id}, Axis: {event.axis}, Value: {event.value:.3f}")
-                elif event.type == pygame.JOYBALLMOTION: # 不常見
-                    print(f"  Pygame Event: JOYBALLMOTION - Joystick ID: {event.instance_id}, Ball: {event.ball}, Rel: {event.rel}")
-                elif event.type == pygame.JOYBUTTONDOWN:
-                    print(f"  Pygame Event: JOYBUTTONDOWN - Joystick ID: {event.instance_id}, Button: {event.button}")
-                elif event.type == pygame.JOYBUTTONUP:
-                    print(f"  Pygame Event: JOYBUTTONUP - Joystick ID: {event.instance_id}, Button: {event.button}")
-                elif event.type == pygame.JOYHATMOTION: # 方向鍵
-                    print(f"  Pygame Event: JOYHATMOTION - Joystick ID: {event.instance_id}, Hat Index: {event.hat}, Value: {event.value}")
-                elif event.type == pygame.JOYDEVICEADDED:
-                    logger.info(f"偵測到新搖桿: Pygame Device Index={event.device_index}. Instance ID={event.instance_id if hasattr(event, 'instance_id') else 'N/A'}")
-                    # 如果是我們正在使用的控制器斷開後重連，可能需要重新初始化
-                    if not controller.is_connected and event.device_index == controller.joystick_id: # 假設 device_index 對應 joystick_id
-                        logger.info("嘗試重新初始化控制器...")
-                        controller = XboxController(joystick_id=controller.joystick_id) # 重新實例化
-                elif event.type == pygame.JOYDEVICEREMOVED:
-                    logger.warning(f"搖桿已移除: Pygame Instance ID={event.instance_id}")
-                    if event.instance_id == controller.joystick_id:
-                        controller.is_connected = False # 更新狀態
+                if event.type == pygame.QUIT:
+                    game_running = False
+                # Handle single press for start/pause directly if needed,
+                # but game.update already has debounce for start.
+                # For continuous presses (like movement), get_pressed is better.
 
-            if not controller.is_connected:
-                print("控制器已斷開，請重新連接或結束測試...", end="\r")
-                time.sleep(0.5)
-                continue
-            else:
-                # 如果剛重新連接，清除 "控制器已斷開" 的訊息
-                print(" " * 50, end="\r")
-
-            inputs = controller.get_input() # 獲取處理後的輸入
-            if inputs:
-                # 收集有意義的輸入以顯示
-                active_inputs_str = []
-                if inputs["a_pressed"]: active_inputs_str.append("A pressed")
-                if inputs["b_pressed"]: active_inputs_str.append("B pressed")
-                if inputs["x_pressed"]: active_inputs_str.append("X pressed")
-                if inputs["y_pressed"]:
-                    active_inputs_str.append("Y pressed (測試震動)")
-                    controller.rumble(0.6, 0.6, 300)
-                
-                if inputs["start_pressed"]: active_inputs_str.append("Start pressed")
-                if inputs["back_pressed"]: active_inputs_str.append("Back pressed")
-                if inputs["lb_pressed"]: active_inputs_str.append("LB pressed")
-                if inputs["rb_pressed"]: active_inputs_str.append("RB pressed")
-
-                # 為了避免洗版，只在數值顯著時打印搖桿和扳機值
-                if abs(inputs["left_stick_x"]) > 0.15 or abs(inputs["left_stick_y"]) > 0.15:
-                    active_inputs_str.append(f"LStick({inputs['left_stick_x']:.2f},{inputs['left_stick_y']:.2f})")
-                if abs(inputs["right_stick_x"]) > 0.15 or abs(inputs["right_stick_y"]) > 0.15:
-                    active_inputs_str.append(f"RStick({inputs['right_stick_x']:.2f},{inputs['right_stick_y']:.2f})")
-                if inputs["lt_value"] > 0.05: active_inputs_str.append(f"LT:{inputs['lt_value']:.2f}")
-                if inputs["rt_value"] > 0.05: active_inputs_str.append(f"RT:{inputs['rt_value']:.2f}")
-
-                dpad_str = []
-                if inputs["dpad_up"]: dpad_str.append("Up")
-                if inputs["dpad_down"]: dpad_str.append("Down")
-                if inputs["dpad_left"]: dpad_str.append("Left")
-                if inputs["dpad_right"]: dpad_str.append("Right")
-                if dpad_str: active_inputs_str.append(f"DPad:[{','.join(dpad_str)}]")
-
-                if active_inputs_str:
-                    # 清除上一行並打印新的狀態
-                    sys.stdout.write("\033[K") # 清除當前行
-                    print("當前活動輸入: " + ", ".join(active_inputs_str), end="\r")
-                else:
-                    # 如果沒有活動輸入，也清除上一行，避免殘留舊訊息
-                    sys.stdout.write("\033[K")
-                    print("無活動輸入 (等待操作)...", end="\r")
+            # Get currently pressed keys for continuous actions
+            pressed_keys = pygame.key.get_pressed()
+            for key_code, action_name in key_action_map.items():
+                if pressed_keys[key_code]:
+                    current_inputs[action_name] = True
             
-            time.sleep(0.02) # 控制更新頻率
+            # Update game
+            game_instance.update(current_inputs)
 
-    except KeyboardInterrupt:
-        print("\n測試被中斷。")
-    except Exception as e:
-        print(f"\n測試過程中發生錯誤: {e}")
-        logger.error("測試主循環錯誤", exc_info=True)
-    finally:
-        print("\n執行清理...")
-        if controller:
-            controller.cleanup()
-        pygame.joystick.quit()
+            # Render game
+            game_instance.render(main_screen)
+            pygame.display.flip() # Update the full display
+
+            # Control frame rate
+            game_clock.tick(60) # Target 60 FPS
+
+        # Quit Pygame
+        game_instance.cleanup()
         pygame.quit()
-        print("測試結束，資源已清理。")
+
+    except Exception as e:
+        print(f"Game execution error: {e}")
+        pygame.quit()
