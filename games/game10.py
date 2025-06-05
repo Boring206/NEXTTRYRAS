@@ -55,47 +55,71 @@ class VampireSurvivorsGame:
         self.player_max_health = 100
         self.player_regen = 0.1
         
-        # Weapons system
+        # Manual attack system
+        self.manual_attack_cooldown = 0.3  # A鍵普通攻擊冷卻
+        self.manual_attack_last_time = 0
+        self.special_attack_cooldown = 2.0  # X鍵小招冷卻
+        self.special_attack_last_time = 0
+        
+        # Manual skills
+        self.manual_skills = {
+            'normal_attack': {
+                'name': 'NORMAL ATTACK',
+                'damage': 15,
+                'range': 150,
+                'cooldown': 0.3,
+                'description': 'SHOOT'
+            },
+            'special_attack': {
+                'name': 'BOOM TIPS',
+                'damage': 40,
+                'range': 100,
+                'cooldown': 2.0,
+                'description': 'BOOM! Area of effect attack'
+            }
+        }
+
+        # Weapons system (for auto attacks)
         self.weapons = {
             'basic_shot': {
-                'name': '基礎射擊',
-                'level': 1,
+                'name': 'Basic Shot',
+                'level': 0,  # Changed to 0, because it's now manual attack
                 'damage': 10,
                 'cooldown': 1.0,
                 'last_shot': 0,
                 'range': 200,
                 'projectile_count': 1,
-                'description': '朝最近敵人射擊'
+                'description': 'Automatically shoots the nearest enemy'
             },
             'fireball': {
-                'name': '火球術',
+                'name': 'Fireball',
                 'level': 0,
                 'damage': 25,
                 'cooldown': 2.0,
                 'last_shot': 0,
                 'range': 250,
                 'projectile_count': 1,
-                'description': '高傷害火球'
+                'description': 'Automatically launches a high-damage fireball'
             },
             'ice_shard': {
-                'name': '冰錐術',
+                'name': 'Ice Shard',
                 'level': 0,
                 'damage': 15,
                 'cooldown': 1.5,
                 'last_shot': 0,
                 'range': 180,
                 'projectile_count': 3,
-                'description': '減速敵人'
+                'description': 'Automatically slows enemies'
             },
             'lightning': {
-                'name': '閃電鏈',
+                'name': 'Chain Lightning',
                 'level': 0,
                 'damage': 20,
                 'cooldown': 3.0,
                 'last_shot': 0,
                 'range': 300,
                 'projectile_count': 1,
-                'description': '連鎖攻擊'
+                'description': 'Automatically performs a chain attack'
             }
         }
         
@@ -184,9 +208,13 @@ class VampireSurvivorsGame:
         self.player_y = self.height // 2
         self.player_health = self.player_max_health
         
-        # Reset weapons
+        # Reset manual attack timers
+        self.manual_attack_last_time = 0
+        self.special_attack_last_time = 0
+        
+        # Reset weapons (all start at level 0 now)
         for weapon in self.weapons.values():
-            weapon['level'] = 1 if weapon['name'] == '基礎射擊' else 0
+            weapon['level'] = 0
             weapon['last_shot'] = 0
         
         self.enemies.clear()
@@ -198,7 +226,7 @@ class VampireSurvivorsGame:
         self.wave_intensity = 1.0
         self.showing_level_up = False
         self.level_up_choices.clear()
-    
+
     def spawn_enemy(self):
         """Spawn a new enemy"""
         if len(self.enemies) >= self.max_enemies:
@@ -375,6 +403,128 @@ class VampireSurvivorsGame:
             frequency = {'basic_shot': 800, 'fireball': 600, 'ice_shard': 1000, 'lightning': 1200}
             self.buzzer.play_tone(frequency=frequency.get(weapon_key, 800), duration=0.1)
     
+    def manual_normal_attack(self):
+        """Handle manual normal attack (A key)"""
+        current_time = time.time()
+        
+        if current_time - self.manual_attack_last_time >= self.manual_attack_cooldown:
+            # Find nearest enemy for targeting
+            nearest_enemy = self.find_nearest_enemy()
+            if nearest_enemy:
+                # Check if enemy is in range
+                distance = math.sqrt(
+                    (nearest_enemy['x'] - self.player_x) ** 2 + 
+                    (nearest_enemy['y'] - self.player_y) ** 2
+                )
+                
+                if distance <= self.manual_skills['normal_attack']['range']:
+                    # Calculate direction to target
+                    dx = nearest_enemy['x'] - self.player_x
+                    dy = nearest_enemy['y'] - self.player_y
+                    
+                    if distance > 0:
+                        # Normalize direction
+                        dir_x = dx / distance
+                        dir_y = dy / distance
+                        
+                        # Create projectile
+                        if len(self.projectiles) < self.max_projectiles:
+                            projectile = {
+                                'x': self.player_x,
+                                'y': self.player_y,
+                                'vx': dir_x * self.projectile_speed,
+                                'vy': dir_y * self.projectile_speed,
+                                'damage': self.manual_skills['normal_attack']['damage'],
+                                'weapon_type': 'manual_normal',
+                                'lifetime': 3.0,
+                                'size': 6
+                            }
+                            self.projectiles.append(projectile)
+                        
+                        # Update cooldown
+                        self.manual_attack_last_time = current_time
+                        
+                        # Play sound effect
+                        if self.buzzer:
+                            self.buzzer.play_tone(frequency=900, duration=0.1)
+
+    def manual_special_attack(self):
+        """Handle manual special attack (X key)"""
+        current_time = time.time()
+        
+        if current_time - self.special_attack_last_time >= self.special_attack_cooldown:
+            # Area of effect attack around player
+            attack_range = self.manual_skills['special_attack']['range']
+            attack_damage = self.manual_skills['special_attack']['damage']
+            
+            # Damage all enemies in range
+            enemies_hit = 0
+            for enemy in self.enemies[:]:
+                distance = math.sqrt(
+                    (enemy['x'] - self.player_x) ** 2 + 
+                    (enemy['y'] - self.player_y) ** 2
+                )
+                
+                if distance <= attack_range:
+                    enemy['health'] -= attack_damage
+                    enemies_hit += 1
+                    
+                    # Create hit particles
+                    self.create_hit_particles(enemy['x'], enemy['y'], self.ORANGE)
+                    
+                    # Check if enemy is dead
+                    if enemy['health'] <= 0:
+                        self.kill_enemy(enemy)
+            
+            if enemies_hit > 0:
+                # Create explosion effect around player
+                for _ in range(20):
+                    if len(self.particles) >= self.max_particles:
+                        break
+                    
+                    angle = random.uniform(0, 2 * math.pi)
+                    speed = random.uniform(50, 150)
+                    
+                    particle = {
+                        'x': self.player_x,
+                        'y': self.player_y,
+                        'vx': math.cos(angle) * speed,
+                        'vy': math.sin(angle) * speed,
+                        'color': self.ORANGE,
+                        'lifetime': 1.0,
+                        'size': random.uniform(4, 8)
+                    }
+                    self.particles.append(particle)
+                
+                # Update cooldown
+                self.special_attack_last_time = current_time
+                
+                # Play sound effect
+                if self.buzzer:
+                    self.buzzer.play_tone(frequency=500, duration=0.3)
+
+    def apply_level_up_choice(self, choice):
+        """Apply the selected level up choice"""
+        if choice['type'] == 'weapon':
+            self.weapons[choice['key']]['level'] += 1
+        elif choice['type'] == 'manual_normal':
+            self.manual_skills['normal_attack']['damage'] += 5
+            self.manual_attack_cooldown = max(0.1, self.manual_attack_cooldown - 0.05)
+            self.manual_skills['normal_attack']['cooldown'] = self.manual_attack_cooldown
+        elif choice['type'] == 'manual_special':
+            self.manual_skills['special_attack']['damage'] += 10
+            self.manual_skills['special_attack']['range'] += 10
+        elif choice['type'] == 'health':
+            self.player_max_health += 20
+            self.player_health += 20
+        elif choice['type'] == 'speed':
+            self.player_speed += 0.5
+        elif choice['type'] == 'regen':
+            self.player_regen += 0.1
+        
+        self.showing_level_up = False
+        self.level_up_choices.clear()
+
     def update_projectiles(self, delta_time):
         """Update projectile positions and collisions"""
         for projectile in self.projectiles[:]:
@@ -408,8 +558,15 @@ class VampireSurvivorsGame:
                         self.chain_lightning(enemy, projectile['damage'] // 2, 2)
                     
                     # Create hit particles
-                    self.create_hit_particles(enemy['x'], enemy['y'], 
-                                            self.YELLOW if projectile['weapon_type'] == 'lightning' else self.WHITE)
+                    hit_color = self.WHITE
+                    if projectile['weapon_type'] == 'manual_normal':
+                        hit_color = self.BLUE
+                    elif projectile['weapon_type'] == 'lightning':
+                        hit_color = self.YELLOW
+                    elif projectile['weapon_type'] == 'fireball':
+                        hit_color = self.ORANGE
+                    
+                    self.create_hit_particles(enemy['x'], enemy['y'], hit_color)
                     
                     # Remove projectile
                     if projectile in self.projectiles:
@@ -520,33 +677,47 @@ class VampireSurvivorsGame:
         """Generate random level up choices"""
         choices = []
         
-        # Weapon upgrades
+        # Weapon upgrades (auto weapons)
         for weapon_key, weapon in self.weapons.items():
             if weapon['level'] < 5:  # Max level 5
                 choice = {
                     'type': 'weapon',
                     'key': weapon_key,
                     'name': weapon['name'],
-                    'description': f"等級 {weapon['level']} → {weapon['level'] + 1}"
+                    'description': f"LEVEL {weapon['level']} → {weapon['level'] + 1} (自動攻擊)"
                 }
                 choices.append(choice)
         
+        # Manual skill upgrades
+        manual_choices = [
+            {'type': 'manual_normal', 'name': 'NORMAL ATTACK', 'description': 'DAMAGE +5, CD -0.05秒'},
+            {'type': 'manual_special', 'name': 'TIPS', 'description': 'DAMAGE +10, RANGE +10'},
+        ]
+        choices.extend(manual_choices)
+        
         # Stat upgrades
         stat_choices = [
-            {'type': 'health', 'name': '生命提升', 'description': '+20 最大生命值'},
-            {'type': 'speed', 'name': '移動速度', 'description': '+0.5 移動速度'},
-            {'type': 'regen', 'name': '生命回復', 'description': '+0.1 每秒回復'}
+            {'type': 'health', 'name': 'LIFE LIMIT', 'description': '+20 LIFE LIMIT'},
+            {'type': 'speed', 'name': 'SPEED', 'description': '+0.5 SPEED'},
+            {'type': 'regen', 'name': 'LIFE REGENERATION', 'description': '+0.1 HP restored per second'}
         ]
         choices.extend(stat_choices)
         
         # Select 3 random choices
         self.level_up_choices = random.sample(choices, min(3, len(choices)))
         self.level_up_choice_index = 0
-    
+
     def apply_level_up_choice(self, choice):
         """Apply the selected level up choice"""
         if choice['type'] == 'weapon':
             self.weapons[choice['key']]['level'] += 1
+        elif choice['type'] == 'manual_normal':
+            self.manual_skills['normal_attack']['damage'] += 5
+            self.manual_attack_cooldown = max(0.1, self.manual_attack_cooldown - 0.05)
+            self.manual_skills['normal_attack']['cooldown'] = self.manual_attack_cooldown
+        elif choice['type'] == 'manual_special':
+            self.manual_skills['special_attack']['damage'] += 10
+            self.manual_skills['special_attack']['range'] += 10
         elif choice['type'] == 'health':
             self.player_max_health += 20
             self.player_health += 20
@@ -557,7 +728,7 @@ class VampireSurvivorsGame:
         
         self.showing_level_up = False
         self.level_up_choices.clear()
-    
+
     def create_hit_particles(self, x, y, color):
         """Create hit effect particles"""
         for _ in range(5):
@@ -653,6 +824,13 @@ class VampireSurvivorsGame:
         
         # Update survival time
         self.survival_time += delta_time
+        
+        # Handle manual attacks
+        if controller_input:
+            if controller_input.get("a_pressed"):
+                self.manual_normal_attack()
+            if controller_input.get("x_pressed"):
+                self.manual_special_attack()
         
         # Player movement with analog stick support
         if controller_input:
@@ -796,6 +974,8 @@ class VampireSurvivorsGame:
                 color = self.CYAN
             elif projectile['weapon_type'] == 'lightning':
                 color = self.YELLOW
+            elif projectile['weapon_type'] == 'manual_normal':
+                color = self.BLUE
             
             pygame.draw.circle(screen, color, 
                              (int(projectile['x']), int(projectile['y'])), projectile['size'])
@@ -840,20 +1020,50 @@ class VampireSurvivorsGame:
         pygame.draw.rect(screen, self.PURPLE, (bar_x, exp_bar_y, bar_width * exp_ratio, 15))
         pygame.draw.rect(screen, self.WHITE, (bar_x, exp_bar_y, bar_width, 15), 2)
         
+        # Manual attack cooldowns
+        current_time = time.time()
+        
+        # Normal attack cooldown (A key)
+        normal_cd_remaining = max(0, self.manual_attack_cooldown - (current_time - self.manual_attack_last_time))
+        normal_cd_ratio = 1 - (normal_cd_remaining / self.manual_attack_cooldown)
+        
+        cd_bar_y = exp_bar_y + 25
+        cd_bar_width = 90
+        
+        pygame.draw.rect(screen, self.GRAY, (bar_x, cd_bar_y, cd_bar_width, 12))
+        pygame.draw.rect(screen, self.GREEN, (bar_x, cd_bar_y, cd_bar_width * normal_cd_ratio, 12))
+        pygame.draw.rect(screen, self.WHITE, (bar_x, cd_bar_y, cd_bar_width, 12), 1)
+        
+        normal_text = self.font_small.render("A:NORMAL ATTACK", True, self.WHITE)
+        screen.blit(normal_text, (bar_x + cd_bar_width + 5, cd_bar_y - 2))
+        
+        # Special attack cooldown (X key)
+        special_cd_remaining = max(0, self.special_attack_cooldown - (current_time - self.special_attack_last_time))
+        special_cd_ratio = 1 - (special_cd_remaining / self.special_attack_cooldown)
+        
+        cd_bar_y += 20
+        
+        pygame.draw.rect(screen, self.GRAY, (bar_x, cd_bar_y, cd_bar_width, 12))
+        pygame.draw.rect(screen, self.ORANGE, (bar_x, cd_bar_y, cd_bar_width * special_cd_ratio, 12))
+        pygame.draw.rect(screen, self.WHITE, (bar_x, cd_bar_y, cd_bar_width, 12), 1)
+        
+        special_text = self.font_small.render("X:TIPS", True, self.WHITE)
+        screen.blit(special_text, (bar_x + cd_bar_width + 5, cd_bar_y - 2))
+        
         # Level and stats
         level_text = self.font_small.render(f"level: {self.level}", True, self.WHITE)
-        screen.blit(level_text, (bar_x, exp_bar_y + 20))
+        screen.blit(level_text, (bar_x, cd_bar_y + 25))
         
         time_text = self.font_small.render(f"time: {int(self.survival_time)}s", True, self.WHITE)
-        screen.blit(time_text, (bar_x, exp_bar_y + 40))
+        screen.blit(time_text, (bar_x, cd_bar_y + 45))
         
         kills_text = self.font_small.render(f"kill: {self.kill_count}", True, self.WHITE)
-        screen.blit(kills_text, (bar_x, exp_bar_y + 60))
+        screen.blit(kills_text, (bar_x, cd_bar_y + 65))
         
         # Score in top right
         score_text = self.font_medium.render(f"score: {self.score}", True, self.WHITE)
         screen.blit(score_text, (self.width - score_text.get_width() - 10, 10))
-    
+
     def render_level_up(self, screen):
         """Render level up choice screen"""
         # Overlay
@@ -913,7 +1123,7 @@ class VampireSurvivorsGame:
         # Stats
         stats = [
             f"score: {self.score}",
-            f"urvival_time: {int(self.survival_time)} 秒",
+            f"urival_time: {int(self.survival_time)} 秒",
             f"kill_count: {self.kill_count}",
             f"level: {self.level}"
         ]
@@ -954,6 +1164,7 @@ if __name__ == "__main__":
             pygame.K_LEFT: "left_pressed",
             pygame.K_RIGHT: "right_pressed",
             pygame.K_a: "a_pressed",
+            pygame.K_x: "x_pressed",
             pygame.K_RETURN: "start_pressed"
         }
         

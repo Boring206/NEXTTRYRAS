@@ -13,9 +13,9 @@ class TicTacToeGame:
     # 井字遊戲類別（增強版）
 
     def __init__(self, width=800, height=600, buzzer=None):
-        self.width = width      # 遊戲區域寬度
-        self.height = height    # 遊戲區域高度
-        self.buzzer = buzzer    # 蜂鳴器實例，用於聲音反饋
+        self.width = width    # 遊戲區域寬度
+        self.height = height   # 遊戲區域高度
+        self.buzzer = buzzer   # 蜂鳴器實例，用於聲音反饋
 
         # 顏色定義
         self.BLACK = (0, 0, 0)
@@ -82,7 +82,7 @@ class TicTacToeGame:
         self.input_delay = 0.18  # 秒 (稍微縮短輸入延遲)
 
         # 電腦玩家設定
-        self.vs_computer = True # 預設為人機對戰
+        self.vs_computer = False # 修改點：預設為雙人對戰 (原為 True)
         self.computer_delay = 0.7  # 電腦思考延遲 (秒)
         self.computer_last_move_time = 0 # 電腦上次移動時間，用於控制電腦移動頻率
 
@@ -215,13 +215,13 @@ class TicTacToeGame:
         
         # 6. 如果以上都沒有，隨機選擇一個空格 (理論上不太會到這一步，除非棋盤已滿)
         empty_cells = []
-        for r in range(3):
-            for c in range(3):
-                if self.board[r][c] == 0:
-                    empty_cells.append((r, c))
+        for r_idx in range(3):
+            for c_idx in range(3):
+                if self.board[r_idx][c_idx] == 0:
+                    empty_cells.append((r_idx, c_idx))
         if empty_cells:
-            r, c = random.choice(empty_cells)
-            self.make_move(r, c)
+            r_choice, c_choice = random.choice(empty_cells)
+            self.make_move(r_choice, c_choice)
             return True
             
         return False # 沒有可下的位置 (不太可能發生)
@@ -247,92 +247,162 @@ class TicTacToeGame:
             if controller_input and controller_input.get("start_pressed"):
                 if current_time - self.last_input_time >= self.input_delay * 2: # 需要更長的延遲來重置
                     self.reset_game()
+                    # 當從遊戲結束畫面重置時，若之前是人機，Y鍵切換後reset_game會設為雙人
+                    # 若希望保持切換後的模式，則reset_game不應強制修改vs_computer
+                    # 但目前的修改是讓reset_game總是設為雙人，所以這裡行為一致
                     self.last_input_time = current_time
             return {"game_over": self.game_over, "winner": self.winner, "scores": self.get_scores()}
 
-        # 處理電腦移動 (如果輪到電腦且不是遊戲結束狀態)
+        # 處理電腦移動 (只有在人機模式且輪到電腦時)
         if self.vs_computer and self.current_player == 2 and not self.game_over:
             self.computer_move() # AI下棋
 
-        # 處理玩家輸入 (如果不是電腦的回合，或是雙人模式)
+        # 處理玩家輸入 (人機模式下只有玩家1可以輸入，雙人模式下兩個玩家都可以輸入)
         if not (self.vs_computer and self.current_player == 2):
-            if current_time - self.last_input_time >= self.input_delay:
-                # Initialize left stick parameters if not exists
-                if not hasattr(self, 'stick_threshold'):
-                    self.stick_threshold = 0.7  # Higher threshold for precise cursor movement
-                    self.last_stick_direction = None
-                
-                moved_cursor = False
-                action_taken = False
+            # Initialize left stick parameters if not exists
+            if not hasattr(self, 'stick_threshold'):
+                self.stick_threshold = 0.7  # Higher threshold for precise cursor movement
+                self.last_stick_direction = None
+            
+            moved_cursor = False
+            action_taken = False # 用於區分移動和確認/切換模式等動作，確保輸入延遲正確應用
 
-                if controller_input:
-                    # Left stick input processing (single-trigger movement)
-                    stick_x = controller_input.get("left_stick_x", 0.0)
-                    stick_y = controller_input.get("left_stick_y", 0.0)
-                    stick_direction = None
-                    
-                    # Determine stick direction with dead zone
-                    if abs(stick_x) > self.stick_threshold or abs(stick_y) > self.stick_threshold:
-                        if abs(stick_x) > abs(stick_y):  # Horizontal movement dominant
-                            if stick_x > self.stick_threshold:
-                                stick_direction = "right"
-                            elif stick_x < -self.stick_threshold:
-                                stick_direction = "left"
-                        else:  # Vertical movement dominant
-                            if stick_y > self.stick_threshold:
-                                stick_direction = "down"  # Stick Y is usually inverted
-                            elif stick_y < -self.stick_threshold:
-                                stick_direction = "up"
-                    
-                    # Apply stick movement (single-trigger with delay)
-                    if stick_direction and stick_direction != self.last_stick_direction:
-                        if stick_direction == "up" and self.cursor_row > 0:
-                            self.cursor_row -= 1
-                            moved_cursor = True
-                        elif stick_direction == "down" and self.cursor_row < 2:
-                            self.cursor_row += 1
-                            moved_cursor = True
-                        elif stick_direction == "left" and self.cursor_col > 0:
-                            self.cursor_col -= 1
-                            moved_cursor = True
-                        elif stick_direction == "right" and self.cursor_col < 2:
-                            self.cursor_col += 1
-                            moved_cursor = True
-                        self.last_stick_direction = stick_direction
-                    elif not stick_direction:
-                        self.last_stick_direction = None  # Reset when stick returns to center
-                    
-                    # D-pad input (preserve original logic, takes priority over stick)
-                    if controller_input.get("up_pressed") and self.cursor_row > 0:
-                        self.cursor_row -= 1
-                        moved_cursor = True
-                    elif controller_input.get("down_pressed") and self.cursor_row < 2:
-                        self.cursor_row += 1
-                        moved_cursor = True
-                    elif controller_input.get("left_pressed") and self.cursor_col > 0:
-                        self.cursor_col -= 1
-                        moved_cursor = True
-                    elif controller_input.get("right_pressed") and self.cursor_col < 2:
-                        self.cursor_col += 1
-                        moved_cursor = True
-                    elif controller_input.get("a_pressed"): # 確認下棋
-                        if self.make_move(self.cursor_row, self.cursor_col):
-                           action_taken = True # 成功下棋才算動作
-                    
-                    if controller_input.get("y_pressed"): # 切換遊戲模式
+            if controller_input:
+                # Handle Y button for mode switching (separate timing control)
+                if controller_input.get("y_pressed"):
+                    if current_time - self.last_input_time >= self.input_delay: # 使用標準延遲
+                        # 在切換模式時，保留總分，僅重置棋盤和當前遊戲狀態
+                        current_score_x = self.score_x
+                        current_score_o = self.score_o
+                        current_score_draw = self.score_draw
+                        
                         self.vs_computer = not self.vs_computer
-                        self.reset_game() # 切換模式時重置遊戲，但保留總分
-                        action_taken = True
-                        if self.buzzer: self.buzzer.play_tone(frequency=500, duration=0.2)
+                        self.reset_game() # reset_game 會將 vs_computer 設為預設值 (現在是False)
+                                          # 如果希望Y鍵切換後保持該模式，reset_game中vs_computer的賦值需要調整
+                                          # 或者，在這裡手動設定回切換後的值
+                        
+                        # 恢復分數，因為 reset_game 會清零它們
+                        self.score_x = current_score_x
+                        self.score_o = current_score_o
+                        self.score_draw = current_score_draw
+                        
+                        # 如果 reset_game 將 vs_computer 設為固定值 (如 False),
+                        # Y鍵切換後需要再根據切換的意圖重新設置它。
+                        # 更好的做法是 reset_game 不要動 vs_computer，或者傳參數
+                        # 為了簡單，我們讓 Y 鍵切換後，reset_game 會重置為預設的雙人
+                        # 如果按 Y 從雙人切到人機，則再手動設定
+                        if not self.vs_computer: # 如果 reset_game 設為 False, 但我們是想切到 True
+                             # 這裡的邏輯需要小心，因為 reset_game 會強制設為 False
+                             # 假設 Y 的作用就是 toggle
+                             # self.vs_computer = not self.vs_computer # 這一行已經做了toggle
+                             # 所以 reset_game 之後，vs_computer 的值是 toggle 之後的
+                             pass # reset_game 之後 vs_computer 的值是正確的 toggle 後的值 (如果 reset_game 不動它)
 
-                    if controller_input.get("start_pressed"): # 開始/重置
-                        self.reset_game()
+                        # 目前 reset_game 將 vs_computer 強制設為 False。
+                        # 所以如果原先是 True, 按 Y, vs_computer 變成 False, reset_game 維持 False (正確)
+                        # 如果原先是 False, 按 Y, vs_computer 變成 True, reset_game 又設回 False (錯誤)
+                        # 因此，Y鍵切換邏輯需要調整
+                        
+                        # 正確的 Y 鍵切換邏輯 (假設 reset_game 不 건드리는 vs_computer)
+                        # self.vs_computer = not self.vs_computer
+                        # temp_vs_computer = self.vs_computer # 保存切換後狀態
+                        # self.reset_game()
+                        # self.vs_computer = temp_vs_computer # 恢復切換後狀態
+
+                        # 考慮到 reset_game 將 vs_computer 設為 False（我們的修改）
+                        # Y 鍵按下時：
+                        # 1. 記錄當前分數
+                        # 2. 切換 vs_computer 的狀態 ( toggle )
+                        # 3. 調用 reset_game (它會將 vs_computer 設為 False, current_player=1 等)
+                        # 4. 如果 toggle 後的目標是 True (人機), 則在 reset_game 後再把 vs_computer 設回 True
+                        
+                        target_vs_computer = not self.vs_computer # 這是按下Y後的目標狀態
+                        self.reset_game() # 這會將 self.vs_computer 設為 False
+                        self.vs_computer = target_vs_computer # 將其設為真正的目標狀態
+                        
+                        # 恢復分數 (因為 reset_game 會清零)
+                        self.score_x = current_score_x
+                        self.score_o = current_score_o
+                        self.score_draw = current_score_draw
+                        
+                        action_taken = True
+                        if self.buzzer: 
+                            if self.vs_computer:
+                                self.buzzer.play_tone(frequency=600, duration=0.2)  # 切換到人機模式
+                            else:
+                                self.buzzer.play_tone(frequency=800, duration=0.2)  # 切換到雙人模式
+                        self.last_input_time = current_time
+
+                # Handle Start button for game reset (separate timing control)
+                # Start鍵應保留當前模式並重置遊戲，但保留總分
+                if controller_input.get("start_pressed") and not action_taken: # 避免Y鍵後立即觸發
+                    if current_time - self.last_input_time >= self.input_delay:
+                        # 保留當前模式和總分
+                        current_mode_vs_computer = self.vs_computer
+                        current_score_x = self.score_x
+                        current_score_o = self.score_o
+                        current_score_draw = self.score_draw
+                        
+                        self.reset_game() # reset_game 會將 vs_computer 設為 False
+                        self.vs_computer = current_mode_vs_computer # 恢復原模式
+                        
+                        self.score_x = current_score_x
+                        self.score_o = current_score_o
+                        self.score_draw = current_score_draw
+                        
                         action_taken = True
                         if self.buzzer: self.buzzer.play_tone(frequency=300, duration=0.3)
+                        self.last_input_time = current_time
+                
+                # Only proceed with movement/action if enough time has passed since last *specific* input type
+                if not action_taken and (current_time - self.last_input_time >= self.input_delay):
+                    # Left stick input processing
+                    stick_x = controller_input.get("left_stick_x", 0.0)
+                    stick_y = controller_input.get("left_stick_y", 0.0)
+                    current_stick_direction = None
+                    
+                    if abs(stick_x) > self.stick_threshold or abs(stick_y) > self.stick_threshold:
+                        if abs(stick_x) > abs(stick_y):
+                            if stick_x > self.stick_threshold: current_stick_direction = "right"
+                            elif stick_x < -self.stick_threshold: current_stick_direction = "left"
+                        else:
+                            if stick_y > self.stick_threshold: current_stick_direction = "down"
+                            elif stick_y < -self.stick_threshold: current_stick_direction = "up"
+                    
+                    if current_stick_direction and current_stick_direction != self.last_stick_direction:
+                        if current_stick_direction == "up" and self.cursor_row > 0: self.cursor_row -= 1; moved_cursor = True
+                        elif current_stick_direction == "down" and self.cursor_row < 2: self.cursor_row += 1; moved_cursor = True
+                        elif current_stick_direction == "left" and self.cursor_col > 0: self.cursor_col -= 1; moved_cursor = True
+                        elif current_stick_direction == "right" and self.cursor_col < 2: self.cursor_col += 1; moved_cursor = True
+                        
+                        if moved_cursor:
+                            self.last_input_time = current_time
+                            if self.buzzer: self.buzzer.play_tone(frequency=250, duration=0.05)
+                    self.last_stick_direction = current_stick_direction # Update regardless of movement for continuous check
 
-                if moved_cursor or action_taken:
-                    self.last_input_time = current_time
-                    if moved_cursor and self.buzzer: self.buzzer.play_tone(frequency=250, duration=0.05) # 移動游標音效
+                    # D-pad input (takes priority if stick didn't move cursor, or if stick not used)
+                    if not moved_cursor: # Only process D-pad if stick didn't cause a move in this frame
+                        dpad_moved = False
+                        if controller_input.get("up_pressed") and self.cursor_row > 0: self.cursor_row -= 1; dpad_moved = True
+                        elif controller_input.get("down_pressed") and self.cursor_row < 2: self.cursor_row += 1; dpad_moved = True
+                        elif controller_input.get("left_pressed") and self.cursor_col > 0: self.cursor_col -= 1; dpad_moved = True
+                        elif controller_input.get("right_pressed") and self.cursor_col < 2: self.cursor_col += 1; dpad_moved = True
+                        
+                        if dpad_moved:
+                            moved_cursor = True # Mark that cursor moved for this update cycle
+                            self.last_input_time = current_time
+                            if self.buzzer: self.buzzer.play_tone(frequency=250, duration=0.05)
+
+                    # Action button (A)
+                    if controller_input.get("a_pressed"):
+                        if self.make_move(self.cursor_row, self.cursor_col):
+                            action_taken = True # Successful move is an action
+                            self.last_input_time = current_time # Reset timer after successful action
+                        else: # Invalid move
+                            self.last_input_time = current_time # Reset timer even for invalid to prevent quick re-trigger
+                
+                # If only cursor moved (not a game action like place piece/reset/mode change), update last_input_time
+                # This was handled inside move blocks. Redundant `if moved_cursor and not action_taken:` removed.
 
         return {"game_over": self.game_over, "winner": self.winner, "scores": self.get_scores()}
 
@@ -370,11 +440,9 @@ class TicTacToeGame:
                     
                     if self.board[r][c] == 1: # 繪製 X
                         size = self.grid_size // 3 # X 的大小
-                        # 左上到右下
                         pygame.draw.line(screen, self.RED,
                                          (center_x - size, center_y - size),
                                          (center_x + size, center_y + size), self.piece_line_width)
-                        # 右上到左下
                         pygame.draw.line(screen, self.RED,
                                          (center_x + size, center_y - size),
                                          (center_x - size, center_y + size), self.piece_line_width)
@@ -387,7 +455,7 @@ class TicTacToeGame:
             start_pos, end_pos = self.winning_line_coords
             pygame.draw.line(screen, self.GREEN, start_pos, end_pos, self.line_width + 2) # 獲勝線加粗
 
-        # 繪製游標 (僅在輪到玩家且非電腦回合時顯示)
+        # 繪製游標 (在雙人模式下始終顯示，在人機模式下只有輪到玩家時顯示)
         if not self.game_over and (not self.vs_computer or self.current_player == 1):
             cursor_rect_x = self.board_x + self.cursor_col * self.grid_size
             cursor_rect_y = self.board_y + self.cursor_row * self.grid_size
@@ -397,32 +465,40 @@ class TicTacToeGame:
         # 顯示遊戲資訊 (目前玩家、模式、分數)
         # 目前玩家
         if not self.game_over:
-            player_turn_text = "輪到: "
+            player_turn_text = "WHO MOVE: "
             if self.current_player == 1:
-                player_turn_text += "X " + ("(您)" if self.vs_computer else "(玩家1)")
+                player_turn_text += "X"
+                if self.vs_computer:
+                    player_turn_text += " (YOU)"
+                else:
+                    player_turn_text += " (PLAYER1)"
                 player_color = self.RED
-            else:
-                player_turn_text += "O " + ("(電腦)" if self.vs_computer else "(玩家2)")
+            else: # current_player == 2
+                player_turn_text += "O"
+                if self.vs_computer:
+                    player_turn_text += " (COM)"
+                else:
+                    player_turn_text += " (PLAYER2)"
                 player_color = self.BLUE
             player_surf = self.font_medium.render(player_turn_text, True, player_color)
             screen.blit(player_surf, (20, 20))
 
         # 遊戲模式
-        mode_text = "模式: " + ("玩家 vs 電腦" if self.vs_computer else "雙人對戰")
+        mode_text = "MODE: " + ("PLAYER vs COM" if self.vs_computer else "PLY vs PLY") # 修改點: PLY/PLY -> PLY vs PLY
         mode_surf = self.font_medium.render(mode_text, True, self.WHITE)
         screen.blit(mode_surf, (self.width - mode_surf.get_width() - 20, 20))
 
         # 分數顯示
-        score_display_text = f"X: {self.score_x}  O: {self.score_o}  平手: {self.score_draw}"
+        score_display_text = f"X: {self.score_x}   O: {self.score_o}   tie: {self.score_draw}" # 稍微增加空格
         score_surf = self.font_medium.render(score_display_text, True, self.WHITE)
         screen.blit(score_surf, (self.width // 2 - score_surf.get_width() // 2, 20))
 
         # 操作提示
         hint_text_lines = [
-            "方向鍵: 移動游標",
-            "A鍵: 確認落子",
-            "Y鍵: 切換模式 (VS電腦/雙人)",
-            "開始鍵: 重置遊戲"
+            "JOYSTICK: MOVE",         # 修改點: JOYSTICL -> JOYSTICK
+            "PRESS A: CONFIRM MOVE",
+            "PRESS Y: CHANGE MODE", # 修改點: PREE -> PRESS, 移除多餘空格
+            "PRESS START: RESET GAME",
         ]
         hint_y_start = self.height - 30 - (len(hint_text_lines) * (self.font_small.get_height() + 2))
 
@@ -439,28 +515,32 @@ class TicTacToeGame:
             result_text = ""
             result_color = self.WHITE
             if self.winner == 0:
-                result_text = "平手!"
+                result_text = "TIE!" # 改為大寫
                 result_color = self.YELLOW
             elif self.winner == 1:
-                result_text = "X 獲勝!"
+                result_text = "X WIN!"
+                if not self.vs_computer:
+                    result_text += " (PLAYER1)"
                 result_color = self.RED
             elif self.winner == 2:
-                result_text = "O 獲勝!"
-                if self.vs_computer: result_text += " (電腦)"
-                else: result_text += " (玩家2)"
+                result_text = "O WIN!"
+                if self.vs_computer: 
+                    result_text += " (COM)"
+                else: 
+                    result_text += " (PLAYER2)"
                 result_color = self.BLUE
             
             result_surf = self.font_large.render(result_text, True, result_color)
             screen.blit(result_surf, (self.width // 2 - result_surf.get_width() // 2, self.height // 2 - 60))
 
-            restart_surf = self.font_medium.render("按 開始鍵 重新一局", True, self.WHITE)
+            restart_surf = self.font_medium.render("PRESS START TO RESTART", True, self.WHITE)
             screen.blit(restart_surf, (self.width // 2 - restart_surf.get_width() // 2, self.height // 2 + 20))
 
     def cleanup(self):
         """清理遊戲資源 (目前未使用)"""
         pass
 
-# 若獨立執行此腳本，用於測試
+# 若獨立執行此腳本，用於測試 (main 部分保持不變)
 if __name__ == "__main__":
     try:
         pygame.init()
@@ -482,17 +562,26 @@ if __name__ == "__main__":
 
         game_instance = TicTacToeGame(screen_width_main, screen_height_main, buzzer=MockBuzzer())
         
+        # Track key states for proper input handling
+        # (這部分在獨立測試時模擬控制器輸入，可以保持不變)
+        keys_pressed = {
+            "up": False, "down": False, "left": False, "right": False,
+            "a": False, "y": False, "start": False
+        }
+        
         running = True
         while running:
             # 事件處理
             controller_input_map = {
                 "up_pressed": False, "down_pressed": False, "left_pressed": False, "right_pressed": False,
-                "a_pressed": False, "y_pressed": False, "start_pressed": False
+                "a_pressed": False, "y_pressed": False, "start_pressed": False,
+                "left_stick_x": 0.0, "left_stick_y": 0.0 # 確保測試時有這些鍵
             }
+            
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
-                # 單次按鍵觸發 (避免按住時連續觸發模式切換或重置)
+                # Handle key press events
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_UP: controller_input_map["up_pressed"] = True
                     if event.key == pygame.K_DOWN: controller_input_map["down_pressed"] = True
@@ -500,9 +589,18 @@ if __name__ == "__main__":
                     if event.key == pygame.K_RIGHT: controller_input_map["right_pressed"] = True
                     if event.key == pygame.K_a: controller_input_map["a_pressed"] = True
                     if event.key == pygame.K_y: controller_input_map["y_pressed"] = True
-                    if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER: # Enter鍵
+                    if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
                         controller_input_map["start_pressed"] = True
-            
+                # (KEYUP 事件處理可以簡化或移除，因為 update 函數現在處理的是單次觸發)
+                # 為了模擬搖桿，我們這裡不處理 KEYUP，讓 controller_input_map 在每幀開始時重置
+
+            # 模擬搖桿持續輸入 (如果需要測試搖桿邏輯)
+            # pressed_keys_pygame = pygame.key.get_pressed()
+            # if pressed_keys_pygame[pygame.K_LEFT]: controller_input_map["left_stick_x"] = -1.0
+            # if pressed_keys_pygame[pygame.K_RIGHT]: controller_input_map["left_stick_x"] = 1.0
+            # if pressed_keys_pygame[pygame.K_UP]: controller_input_map["left_stick_y"] = -1.0 # Pygame Y軸向下為正
+            # if pressed_keys_pygame[pygame.K_DOWN]: controller_input_map["left_stick_y"] = 1.0
+
             # 更新遊戲狀態
             game_state = game_instance.update(controller_input_map)
             

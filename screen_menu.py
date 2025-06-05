@@ -164,6 +164,141 @@ class SPIScreenManager:
         
         if duration > 0: time.sleep(duration)
 
+    def display_vampire_survivors_status(self, game_status):
+        """顯示吸血鬼倖存者遊戲實時狀態"""
+        if not self.is_available(): return
+        
+        # 從遊戲狀態中提取信息
+        level = game_status.get('level', 1)
+        health = game_status.get('health', 100)
+        max_health = game_status.get('max_health', 100)
+        survival_time = game_status.get('survival_time', 0)
+        kill_count = game_status.get('kill_count', 0)
+        score = game_status.get('score', 0)
+        experience = game_status.get('experience', 0)
+        exp_to_next = game_status.get('experience_to_next_level', 100)
+        
+        # 手動技能冷卻狀態
+        normal_attack_ready = game_status.get('normal_attack_ready', True)
+        special_attack_ready = game_status.get('special_attack_ready', True)
+        normal_cd_remaining = game_status.get('normal_cd_remaining', 0)
+        special_cd_remaining = game_status.get('special_cd_remaining', 0)
+        
+        # 當前武器信息
+        active_weapons = game_status.get('active_weapons', [])
+        
+        # 遊戲特殊狀態
+        game_over = game_status.get('game_over', False)
+        paused = game_status.get('paused', False)
+        showing_level_up = game_status.get('showing_level_up', False)
+        
+        with canvas(self.device) as draw:
+            draw.rectangle(self.device.bounding_box, outline=self.BLACK, fill=self.BLACK)
+            
+            if game_over:
+                # 遊戲結束畫面
+                self._draw_centered_text(draw, "GG", self.font_large, self.RED, 20)
+                self._draw_centered_text(draw, f"score: {score}", self.font_medium, self.WHITE, 50)
+                self._draw_centered_text(draw, f"survival: {int(survival_time)}秒", self.font_small, self.CYAN, 75)
+                self._draw_centered_text(draw, f"kill_count: {kill_count}", self.font_small, self.CYAN, 95)
+                self._draw_centered_text(draw, "Press start to restart", self.font_small, self.YELLOW, 120)
+                
+            elif paused:
+                # 暫停畫面
+                self._draw_centered_text(draw, "Pause", self.font_large, self.YELLOW, 50)
+                self._draw_centered_text(draw, "Press Start to continue", self.font_medium, self.WHITE, 80)
+                
+            elif showing_level_up:
+                # 升級選擇畫面
+                self._draw_centered_text(draw, "Upgade!", self.font_large, self.YELLOW, 20)
+                self._draw_centered_text(draw, f"Level {level}", self.font_medium, self.WHITE, 50)
+                self._draw_centered_text(draw, "Select Upgrade Project", self.font_small, self.CYAN, 80)
+                self._draw_centered_text(draw, "Operation on the main screen", self.font_small, self.GREEN, 100)
+                
+            else:
+                # 正常遊戲狀態畫面
+                y_pos = 5
+                line_height = 18
+                
+                # 標題
+                self._draw_centered_text(draw, "吸血鬼倖存者", self.font_medium, self.YELLOW, y_pos)
+                y_pos += 25
+                
+                # 基本狀態
+                draw.text((5, y_pos), f"Level: {level}", font=self.font_small, fill=self.WHITE)
+                draw.text((80, y_pos), f"Time: {int(survival_time)}s", font=self.font_small, fill=self.CYAN)
+                y_pos += line_height
+                
+                # 生命值條
+                draw.text((5, y_pos), f"Life: {int(health)}/{max_health}", font=self.font_small, fill=self.WHITE)
+                y_pos += 12
+                
+                # 生命值條
+                bar_width = self.width - 20
+                bar_height = 6
+                health_ratio = health / max_health if max_health > 0 else 0
+                
+                draw.rectangle((10, y_pos, 10 + bar_width, y_pos + bar_height), fill=self.RED)
+                draw.rectangle((10, y_pos, 10 + int(bar_width * health_ratio), y_pos + bar_height), fill=self.GREEN)
+                y_pos += 15
+                
+                # 經驗值條
+                draw.text((5, y_pos), f"Experience: {experience}/{exp_to_next}", font=self.font_small, fill=self.WHITE)
+                y_pos += 12
+                
+                exp_ratio = experience / exp_to_next if exp_to_next > 0 else 0
+                draw.rectangle((10, y_pos, 10 + bar_width, y_pos + bar_height), fill=self.GRAY)
+                draw.rectangle((10, y_pos, 10 + int(bar_width * exp_ratio), y_pos + bar_height), fill=self.PURPLE)
+                y_pos += 15
+                
+                # 技能冷卻狀態
+                draw.text((5, y_pos), "CD:", font=self.font_small, fill=self.WHITE)
+                y_pos += line_height
+                
+                # A鍵普攻狀態
+                a_status_color = self.GREEN if normal_attack_ready else self.RED
+                a_text = "A:NA READY" if normal_attack_ready else f"A:NA {normal_cd_remaining:.1f}s"
+                draw.text((5, y_pos), a_text, font=self.font_small, fill=a_status_color)
+                y_pos += line_height
+                
+                # X鍵小招狀態
+                x_status_color = self.GREEN if special_attack_ready else self.RED
+                x_text = "X:SM READY" if special_attack_ready else f"X:SM {special_cd_remaining:.1f}s"
+                draw.text((5, y_pos), x_text, font=self.font_small, fill=x_status_color)
+                y_pos += line_height
+                
+                # 模式切換提示
+                draw.text((5, y_pos), "Y:Switch Mode", font=self.font_small, fill=self.MAGENTA)
+                y_pos += line_height
+                
+                # 戰鬥統計
+                draw.text((5, y_pos), f"Kill_Count: {kill_count}", font=self.font_small, fill=self.WHITE)
+                draw.text((80, y_pos), f"Score: {score}", font=self.font_small, fill=self.YELLOW)
+                y_pos += line_height
+                
+                # 自動武器狀態 (如果有的話)
+                if active_weapons:
+                    remaining_space = self.height - y_pos - 15
+                    if remaining_space > 15:
+                        draw.text((5, y_pos), "AUTO WEAPON:", font=self.font_small, fill=self.CYAN)
+                        y_pos += 12
+                        
+                        for i, weapon in enumerate(active_weapons[:2]):  # 最多顯示2個武器
+                            if y_pos + 12 > self.height - 5:
+                                break
+                            weapon_text = f"{weapon.get('name', 'NONE')} Lv{weapon.get('level', 1)}"
+                            # 縮短文字以適應螢幕
+                            if len(weapon_text) > 15:
+                                weapon_text = weapon_text[:12] + "..."
+                            draw.text((10, y_pos), weapon_text, font=self.font_small, fill=self.WHITE)
+                            y_pos += 12
+
+    def _draw_centered_text(self, draw, text, font, color, y_pos):
+        """在指定Y位置水平居中繪製文字"""
+        text_width = self.get_text_width(text, font)
+        x_pos = (self.width - text_width) // 2
+        draw.text((x_pos, y_pos), text, font=font, fill=color)
+
     def display_menu(self, menu_items, current_selection, title="選擇遊戲"):
         if not self.is_available(): return
         

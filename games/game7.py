@@ -78,6 +78,7 @@ class WhacAMoleGame:
         self.misses = 0
         self.time_left = 60  # 60 seconds game time
         self.start_time = time.time()
+        self.last_update_time = time.time()  # 新增：用於計算 delta_time
         
         # Mole state
         self.moles = [False] * (self.grid_size * self.grid_size)  # Whether the mole appears
@@ -97,7 +98,7 @@ class WhacAMoleGame:
         
         # For controlling input frequency
         self.last_input_time = time.time()
-        self.input_delay = 0.2  # seconds
+        self.input_delay = 0.15  # 減少輸入延遲，提高回應性
         
         # Combo system
         self.combo = 0
@@ -181,6 +182,10 @@ class WhacAMoleGame:
         Returns:
             Dictionary containing game state
         """
+        current_time = time.time()
+        delta_time = current_time - self.last_update_time
+        self.last_update_time = current_time
+        
         if self.game_over or self.paused:
             # Handle input in game over or paused state
             if controller_input and controller_input.get("start_pressed"):
@@ -192,9 +197,8 @@ class WhacAMoleGame:
             return {"game_over": self.game_over, "score": self.score, "paused": self.paused}
         
         # Update game time
-        current_time = time.time()
-        delta_time = current_time - self.start_time
-        self.time_left = max(0, 60 - int(delta_time))
+        elapsed_time = current_time - self.start_time
+        self.time_left = max(0, 60 - int(elapsed_time))
         
         # Time's up, game over
         if self.time_left <= 0:
@@ -212,8 +216,7 @@ class WhacAMoleGame:
             self.last_spawn_time = current_time
         
         # Update mole states
-        self.update_moles(current_time - self.last_input_time)
-        self.last_input_time = current_time
+        self.update_moles(delta_time)
         
         # Hammer animation
         if self.hammer_active:
@@ -223,13 +226,21 @@ class WhacAMoleGame:
                 self.hammer_angle = 0
         
         # Handle player input
-        if controller_input and current_time - self.last_input_time >= self.input_delay:
+        if controller_input:
             # Initialize left stick parameters if not exists
             if not hasattr(self, 'stick_threshold'):
                 self.stick_threshold = 0.7
                 self.last_stick_direction = None
             
             input_detected = False
+            
+            # 檢查是否有任何輸入（移動或攻擊）
+            any_movement = (controller_input.get("up_pressed") or 
+                           controller_input.get("down_pressed") or 
+                           controller_input.get("left_pressed") or 
+                           controller_input.get("right_pressed"))
+            
+            any_action = controller_input.get("a_pressed") or controller_input.get("start_pressed")
             
             # Left stick input processing (single-trigger movement)
             stick_x = controller_input.get("left_stick_x", 0.0)
@@ -248,48 +259,55 @@ class WhacAMoleGame:
                     elif stick_y < -self.stick_threshold:
                         stick_direction = "up"
             
-            # Apply stick movement (single-trigger with delay)
-            if stick_direction and stick_direction != self.last_stick_direction:
-                if stick_direction == "up":
+            # 移動輸入處理（有延遲控制）
+            if (any_movement or stick_direction) and (current_time - self.last_input_time >= self.input_delay):
+                # Apply stick movement (single-trigger with delay)
+                if stick_direction and stick_direction != self.last_stick_direction:
+                    if stick_direction == "up":
+                        self.hammer_idx = max(0, self.hammer_idx - self.grid_size)
+                        input_detected = True
+                    elif stick_direction == "down":
+                        self.hammer_idx = min(len(self.grid_positions) - 1, self.hammer_idx + self.grid_size)
+                        input_detected = True
+                    elif stick_direction == "left":
+                        if self.hammer_idx % self.grid_size > 0:
+                            self.hammer_idx -= 1
+                        input_detected = True
+                    elif stick_direction == "right":
+                        if self.hammer_idx % self.grid_size < self.grid_size - 1:
+                            self.hammer_idx += 1
+                        input_detected = True
+                    self.last_stick_direction = stick_direction
+                elif not stick_direction:
+                    self.last_stick_direction = None
+                
+                # D-pad input (preserve original logic, takes priority)
+                if controller_input.get("up_pressed"):
                     self.hammer_idx = max(0, self.hammer_idx - self.grid_size)
                     input_detected = True
-                elif stick_direction == "down":
+                elif controller_input.get("down_pressed"):
                     self.hammer_idx = min(len(self.grid_positions) - 1, self.hammer_idx + self.grid_size)
                     input_detected = True
-                elif stick_direction == "left":
+                
+                if controller_input.get("left_pressed"):
                     if self.hammer_idx % self.grid_size > 0:
                         self.hammer_idx -= 1
                     input_detected = True
-                elif stick_direction == "right":
+                elif controller_input.get("right_pressed"):
                     if self.hammer_idx % self.grid_size < self.grid_size - 1:
                         self.hammer_idx += 1
                     input_detected = True
-                self.last_stick_direction = stick_direction
-            elif not stick_direction:
-                self.last_stick_direction = None
+                
+                # Update hammer position
+                if 0 <= self.hammer_idx < len(self.grid_positions):
+                    self.hammer_pos = self.grid_positions[self.hammer_idx]
+                
+                if input_detected:
+                    self.last_input_time = current_time
+                    if self.buzzer:
+                        self.buzzer.play_tone(frequency=300, duration=0.05)
             
-            # D-pad input (preserve original logic, takes priority)
-            if controller_input.get("up_pressed"):
-                self.hammer_idx = max(0, self.hammer_idx - self.grid_size)
-                input_detected = True
-            elif controller_input.get("down_pressed"):
-                self.hammer_idx = min(len(self.grid_positions) - 1, self.hammer_idx + self.grid_size)
-                input_detected = True
-            
-            if controller_input.get("left_pressed"):
-                if self.hammer_idx % self.grid_size > 0:
-                    self.hammer_idx -= 1
-                input_detected = True
-            elif controller_input.get("right_pressed"):
-                if self.hammer_idx % self.grid_size < self.grid_size - 1:
-                    self.hammer_idx += 1
-                input_detected = True
-            
-            # Update hammer position
-            if 0 <= self.hammer_idx < len(self.grid_positions):
-                self.hammer_pos = self.grid_positions[self.hammer_idx]
-            
-            # Hit control
+            # 攻擊輸入處理（立即響應，無延遲）
             if controller_input.get("a_pressed") and not self.hammer_active:
                 self.hammer_active = True
                 self.hammer_angle = 0
@@ -301,12 +319,6 @@ class WhacAMoleGame:
                 self.paused = not self.paused
                 input_detected = True
                 return {"game_over": self.game_over, "score": self.score, "paused": self.paused}
-            
-            # If input is detected, play sound and update input timing
-            if input_detected:
-                self.last_input_time = current_time
-                if self.buzzer and not controller_input.get("a_pressed"):
-                    self.buzzer.play_tone(frequency=300, duration=0.05)
         
         return {"game_over": self.game_over, "score": self.score}
     
@@ -341,8 +353,14 @@ class WhacAMoleGame:
                 pygame.draw.circle(screen, self.BLACK, (x, y - 15), 5)
                 pygame.draw.arc(screen, self.BLACK, (x - 20, y - 15, 40, 20), 0, 3.14, 2)
         
-        # Draw hammer
+        # Draw hammer with highlighted current position
         hammer_center = self.hammer_pos
+        
+        # 高亮顯示當前選中的位置
+        if 0 <= self.hammer_idx < len(self.grid_positions):
+            highlight_pos = self.grid_positions[self.hammer_idx]
+            pygame.draw.circle(screen, self.YELLOW, highlight_pos, self.hole_radius + 10, 3)
+        
         # Draw hammer head
         hammer_head_points = [
             (hammer_center[0] - 20, hammer_center[1] - 60 + self.hammer_angle),
@@ -364,6 +382,11 @@ class WhacAMoleGame:
         score_text = font.render(f"Score: {self.score}", True, self.WHITE)
         screen.blit(score_text, (10, 10))
         
+        # Combo
+        if self.combo > 1:
+            combo_text = font.render(f"Combo: {self.combo}x", True, self.YELLOW)
+            screen.blit(combo_text, (10, 90))
+        
         # Misses
         misses_text = font.render(f"Misses: {self.misses}", True, self.WHITE)
         screen.blit(misses_text, (10, 50))
@@ -371,6 +394,11 @@ class WhacAMoleGame:
         # Time left
         time_text = font.render(f"Time: {self.time_left}", True, self.WHITE)
         screen.blit(time_text, (self.width - 150, 10))
+        
+        # 控制說明
+        control_font = pygame.font.Font(None, 24)
+        control_text = control_font.render("Arrow keys: Move, A: Hit, Start: Pause", True, self.WHITE)
+        screen.blit(control_text, (10, self.height - 30))
         
         # Game over screen
         if self.game_over:
@@ -451,25 +479,19 @@ if __name__ == "__main__":
         
         # Game main loop
         running = True
-        last_time = time.time()
         
         while running:
-            current_time = time.time()
-            delta_time = current_time - last_time
-            last_time = current_time
-            
             # Handle events
             controller_input = {key: False for key in key_mapping.values()}
             
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
-            
-            # Get current key states
-            keys = pygame.key.get_pressed()
-            for key, input_name in key_mapping.items():
-                if keys[key]:
-                    controller_input[input_name] = True
+                # 處理按鍵按下事件
+                elif event.type == pygame.KEYDOWN:
+                    for key, input_name in key_mapping.items():
+                        if event.key == key:
+                            controller_input[input_name] = True
             
             # Update game
             game.update(controller_input)

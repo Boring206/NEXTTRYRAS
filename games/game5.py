@@ -156,7 +156,6 @@ class MemoryMatchGame:
         self.reset_game()
         self.game_state = self.SHOWING_CARDS
 
-
     def reset_game(self):
         """Reset game state based on current difficulty"""
         self.total_pairs = (self.grid_cols * self.grid_rows) // 2
@@ -172,7 +171,6 @@ class MemoryMatchGame:
         
         self.card_width = available_width // self.grid_cols
         self.card_height = available_height // self.grid_rows
-
 
         # Create card pairs
         self.cards = []
@@ -205,7 +203,6 @@ class MemoryMatchGame:
                 else: # Should not happen with correct total_pairs and color list generation
                     print(f"Warning: Not enough colors for card at index {index}")
 
-
         self.cursor_row = 0
         self.cursor_col = 0
         self.revealed_cards = []
@@ -226,7 +223,6 @@ class MemoryMatchGame:
         self.flip_back_timer_start = 0
 
         print(f"Game reset for {self.difficulty}. Grid: {self.grid_cols}x{self.grid_rows}, Pairs: {self.total_pairs}, Card Size: {self.card_width}x{self.card_height}")
-
 
     def get_card_at(self, row, col):
         """Get the card at the specified position"""
@@ -275,7 +271,6 @@ class MemoryMatchGame:
                     self.menu_selected_option = i
                     self._process_menu_selection()
                     break
-
 
     def attempt_flip_card(self, row, col):
         if len(self.revealed_cards) >= 2: # Already two cards selected
@@ -555,12 +550,32 @@ class MemoryMatchGame:
     def draw_particles(self, screen):
         for particle in self.particles:
             if particle['life'] > 0:
+                # 計算 alpha 值 (0-255)
                 alpha = int(particle['life'] * 255)
+                alpha = max(0, min(255, alpha))  # 確保在有效範圍內
+                
+                # 計算粒子大小
                 size = max(2, int(6 * particle['life']))
                 
+                # 確保顏色是有效的 RGB 格式
+                color = particle['color']
+                if len(color) == 3:  # RGB 格式
+                    r, g, b = color
+                elif len(color) == 4:  # RGBA 格式，取前三個值
+                    r, g, b = color[:3]
+                else:
+                    r, g, b = 255, 255, 255  # 預設白色
+                
+                # 創建帶有 alpha 的表面
                 particle_surf = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
-                color_with_alpha = (*particle['color'], alpha)
-                pygame.draw.circle(particle_surf, color_with_alpha, (size, size), size)
+                
+                # 使用 RGB 顏色繪製圓形
+                pygame.draw.circle(particle_surf, (r, g, b), (size, size), size)
+                
+                # 設置整個表面的 alpha
+                particle_surf.set_alpha(alpha)
+                
+                # 繪製到螢幕上
                 screen.blit(particle_surf, (int(particle['x'] - size), int(particle['y'] - size)))
 
     def draw_hud(self, screen, is_showing_all, current_time):
